@@ -1,0 +1,4 @@
+alpaca-py
+vectorbt
+python-dotenv
+dateparser
