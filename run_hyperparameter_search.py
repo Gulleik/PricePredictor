@@ -6,6 +6,8 @@ from src.config import (
     DEFAULT_START,
     DEFAULT_TIMEFRAME,
     FAST_WINDOWS,
+    HYPERPARAM_SYMBOL,
+    HYPERPARAM_TOP_N,
     SCAN_OBJECTIVE,
     SLOW_WINDOWS,
 )
@@ -14,7 +16,7 @@ from src.strategies.sma_crossover import run_scan
 
 
 def main() -> None:
-    symbol = "BTC/USD"
+    symbol = HYPERPARAM_SYMBOL
     price = load_crypto_bars(
         symbol,
         start=DEFAULT_START,
@@ -50,7 +52,7 @@ def main() -> None:
     print(pf[best_col].stats())
     print()
 
-    top_n = 5
+    top_n = HYPERPARAM_TOP_N
     top_cols = metric_series.nlargest(top_n)
     print(f"Top {top_n} combinations:")
     for (fast, slow), val in top_cols.items():

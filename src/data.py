@@ -2,6 +2,7 @@
 
 import os
 from datetime import datetime
+from typing import Union
 
 import pandas as pd
 from dateparser import parse as parse_date
@@ -24,19 +25,25 @@ def _parse_timeframe(timeframe: str) -> TimeFrame:
     except ValueError:
         return TimeFrame.Day
     if unit == "d":
-        return TimeFrame(amount=1, unit=TimeFrameUnit.Day)
+        return TimeFrame(amount=max(amount, 1), unit=TimeFrameUnit.Day)
     if unit == "h":
-        return TimeFrame(amount=min(amount, 23), unit=TimeFrameUnit.Hour)
+        return TimeFrame(amount=max(1, min(amount, 23)), unit=TimeFrameUnit.Hour)
     if unit == "m":
-        return TimeFrame(amount=min(amount, 59), unit=TimeFrameUnit.Minute)
+        return TimeFrame(amount=max(1, min(amount, 59)), unit=TimeFrameUnit.Minute)
     return TimeFrame.Day
 
 
-def _parse_datetime(value: str) -> datetime:
+def _parse_datetime(value: Union[str, datetime]) -> datetime:
     """Parse flexible date string to timezone-aware datetime."""
     if isinstance(value, datetime):
         return value
-    return parse_date(value, settings={"TIMEZONE": "UTC", "RETURN_AS_TIMEZONE_AWARE": True})
+    parsed = parse_date(
+        value,
+        settings={"TIMEZONE": "UTC", "RETURN_AS_TIMEZONE_AWARE": True},
+    )
+    if parsed is None:
+        raise ValueError(f"Could not parse datetime value: {value}")
+    return parsed
 
 
 def load_crypto_bars(
@@ -45,7 +52,7 @@ def load_crypto_bars(
     end: str,
     *,
     timeframe: str = "1d",
-):
+) -> pd.Series:
     """
     Load historical crypto OHLCV bars from Alpaca.
 

@@ -3,6 +3,9 @@
 import time
 
 from src.config import (
+    BACKTEST_FAST_WINDOW,
+    BACKTEST_SLOW_WINDOW,
+    BACKTEST_SYMBOL,
     DEFAULT_END,
     DEFAULT_INIT_CASH,
     DEFAULT_START,
@@ -13,7 +16,7 @@ from src.strategies.sma_crossover import run as sma_run
 
 
 def main() -> None:
-    symbol = "BTC/USD"
+    symbol = BACKTEST_SYMBOL
     print(f"[1/4] Loading market data for {symbol}...")
     t0 = time.perf_counter()
     price = load_crypto_bars(
@@ -28,8 +31,8 @@ def main() -> None:
     t1 = time.perf_counter()
     pf, fast_ma, slow_ma = sma_run(
         price,
-        fast=5,
-        slow=15,
+        fast=BACKTEST_FAST_WINDOW,
+        slow=BACKTEST_SLOW_WINDOW,
         init_cash=DEFAULT_INIT_CASH,
     )
     print(f"[2/4] Done in {time.perf_counter() - t1:.2f}s")

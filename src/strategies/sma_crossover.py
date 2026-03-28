@@ -1,10 +1,19 @@
 """SMA crossover strategy: buy when fast MA crosses above slow MA."""
 
+from collections.abc import Iterable
+from typing import Any
+
 import numpy as np
+import pandas as pd
 import vectorbt as vbt
 
 
-def run(price, fast: int = 10, slow: int = 30, init_cash: float = 10_000.0):
+def run(
+    price: pd.Series,
+    fast: int = 10,
+    slow: int = 30,
+    init_cash: float = 10_000.0,
+) -> tuple[Any, Any, Any]:
     """
     Run SMA crossover backtest.
 
@@ -24,7 +33,12 @@ def run(price, fast: int = 10, slow: int = 30, init_cash: float = 10_000.0):
     return pf, fast_ma, slow_ma
 
 
-def run_scan(price, fast_windows, slow_windows, init_cash: float = 10_000.0):
+def run_scan(
+    price: pd.Series,
+    fast_windows: Iterable[int],
+    slow_windows: Iterable[int],
+    init_cash: float = 10_000.0,
+) -> Any:
     """
     Run SMA crossover backtest across all valid (fast, slow) combinations
     where fast < slow. Uses vectorized MA.run_combs for efficiency.
