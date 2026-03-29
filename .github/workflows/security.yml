@@ -43,8 +43,9 @@ jobs:
       contents: read
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history so Gitleaks can diff any commit range
 
       - name: Run Gitleaks
         uses: gitleaks/gitleaks-action@v2
