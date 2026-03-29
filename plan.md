@@ -1,83 +1,66 @@
 # PLAN.md - High-Fidelity Research Platform Roadmap
 
 ## Objective
-Transform the current repository into a **Strategic Sandbox**. The goal is to ensure that any strategy passing these tests is mathematically and operationally ready for IRL (In Real Life) trading by accounting for friction, avoiding overfitting, and verifying robustness.
+Transform the repository into a **Strategic Sandbox**. The goal is to ensure that any strategy passing these tests is mathematically, operationally, and technically ready for IRL trading by accounting for friction, avoiding overfitting, and enforcing rigorous risk management.
 
 ---
 
-## Milestone 1: Execution Fidelity (The "Friction" Layer)
-**Goal:** Eliminate "perfect world" hallucinations by simulating real market costs and timing.
+## Milestone 1: Infrastructure & Automation (The "Safety & Speed" Rail)
+**Goal:** Automate quality control and optimize data handling for rapid iteration.
 
-- [ ] **Implement a Broker Model:** Create `src/models/broker.py` to encapsulate execution logic.
-- [ ] **Update `src/config.py`:** Add mandatory friction parameters:
-    - `SLIPPAGE_BPS`: Default 2.0 (0.02%).
-    - `COMMISSION_PER_SHARE`: Standard broker fee logic.
-    - `MIN_SPREAD`: Minimum dollar distance between Bid and Ask.
-- [ ] **Enforce Next-Bar Fills:** Modify the backtest loop so a signal at Candle $T$ (Close) is filled at Candle $T+1$ (Open).
-- [ ] **Volume Constraint:** Add a `MAX_VOLUME_PARTICIPATION` limit (e.g., 10%) to ensure trades don't exceed realistic liquidity.
+- [ ] **Linting & Formatting:** Set up `.github/workflows/ci.yml` using `ruff` for linting and formatting.
+- [ ] **Automated Testing:** Configure GitHub Actions to run `pytest` on every Push and PR.
+- [ ] **Security Scanning:** Integrate Secret Scanning and SAST (CodeQL) to protect API keys.
+- [ ] **Data Persistence & Caching:** Implement a local **Parquet-based cache** in a `data/` directory to prevent redundant Alpaca API calls and significantly speed up backtests.
 
----
+## Milestone 2: Data Integrity (The "Anti-Bias" Layer)
+**Goal:** Ensure the "ground truth" data is clean and the strategy isn't "cheating."
 
-## Milestone 2: Validation Framework (The "Scientific" Layer)
-**Goal:** Prevent curve-fitting (memorizing the past) through rigorous data separation.
+- [ ] **Look-Ahead Bias Guard:** Implement a `pytest` suite ensuring strategy logic never accesses future indices (e.g., `df.iloc[t+1]`).
+- [ ] **Timezone Standardization:** Enforce UTC across all modules to prevent "time-travel" bugs.
+- [ ] **Survivorship Bias Audit:** Add logic to handle or flag delisted tickers to prevent upward-biased results.
 
-- [ ] **Walk-Forward Optimization (WFO):** Update `run_hyperparameter_search.py` to support rolling windows.
-    - **In-Sample (IS):** Training period to find optimal parameters.
-    - **Out-of-Sample (OOS):** "Blind" testing period to verify the parameters hold up.
-- [ ] **Regime Analysis:** Tag data by market type (Bull, Bear, Sideways) to analyze performance in different environments.
+## Milestone 3: Execution Fidelity & Risk (The "Physics" Layer)
+**Goal:** Simulate market costs and implement survival-focused position sizing.
 
----
+- [ ] **Broker Model:** Create `src/models/broker.py` for slippage, commissions, and spread logic.
+- [ ] **Enforce Next-Bar Fills:** Ensure signals at Candle $T$ are executed at Candle $T+1$ Open.
+- [ ] **Risk & Position Sizing:** Create `src/models/risk.py` to implement **Volatility Targeting** or **Kelly Criterion** sizing instead of fixed-lot trading.
+- [ ] **Volume Constraints:** Implement `MAX_VOLUME_PARTICIPATION` limits for liquidity realism.
 
-## Milestone 3: Data Integrity (The "Anti-Bias" Layer)
-**Goal:** Ensure the strategy isn't "cheating" by seeing the future or ignoring failures.
+## Milestone 4: Validation & Sensitivity (The "Scientific" Layer)
+**Goal:** Distinguish "luck" from "edge" and identify brittle strategies.
 
-- [ ] **Look-Ahead Bias Guard:** Create a `pytest` suite that confirms the strategy logic never accesses `df.iloc[t+1]` or beyond during a simulation.
-- [ ] **Survivorship Bias Audit:** Ensure `src/data.py` handles (or at least logs) if tickers in the universe were delisted during the test period.
-- [ ] **Timezone Standardization:** Enforce UTC across all data loading to prevent "time-travel" bugs.
+- [ ] **Walk-Forward Optimization (WFO):** Update `run_hyperparameter_search.py` for rolling In-Sample (IS) and Out-of-Sample (OOS) windows.
+- [ ] **Parameter Sensitivity Testing:** Generate "Sensitivity Heatmaps" to ensure the strategy remains profitable across a range of parameters (avoiding "brittle" peaks).
+- [ ] **Regime Tagging:** Classify market environments (Bull/Bear/Sideways) for granular performance analysis.
 
----
+## Milestone 5: Systematic Search & Metrics (The "Laboratory")
+**Goal:** Use high-performance tools to find and measure risk-adjusted success.
 
-## Milestone 4: Systematic Search & Metrics
-**Goal:** Use Bayesian search to find the "sweet spot" and measure risk-adjusted returns.
+- [ ] **Optuna Integration:** Implement Bayesian search in `run_hyperparameter_search.py`.
+- [ ] **Advanced Metrics Suite:** Include Sharpe, Sortino, **Calmar Ratio** (CAGR/Max Drawdown), and Max Drawdown Duration.
 
-- [ ] **Optuna Integration:** Implement `optuna` in `run_hyperparameter_search.py` for smarter parameter discovery.
-- [ ] **Advanced Metrics Suite:** Expand backtest output to include:
-    - **Sharpe/Sortino Ratio:** Risk-adjusted returns.
-    - **Max Drawdown Duration:** Time spent "underwater."
-    - **Profit Factor:** Gross Profit vs. Gross Loss.
+## Milestone 6: Strategy Library Expansion (The "Experiments")
+**Goal:** Build out diverse trading archetypes.
 
----
+- [ ] **Mean Reversion:** RSI/Bollinger Band logic with volatility filters.
+- [ ] **Trend Following:** EMA Cross strategies with ATR-based trailing stops.
+- [ ] **Volatility Breakout:** Donchian Channel or ATR-based breakout logic.
+- [ ] **ORB:** Opening Range Breakout logic for early-session volatility.
 
-## Milestone 5: Stress Testing (The "Resilience" Layer)
-**Goal:** Verify if a strategy is "Good" or just "Lucky."
+## Milestone 7: Stress Testing (The "Trial by Fire")
+**Goal:** Final validation before considering live deployment.
 
-- [ ] **Monte Carlo Simulation:** Create a script to run 1,000 iterations of the backtest while:
-    - Randomly shuffling the sequence of daily returns.
-    - Randomly "dropping" 10% of winning trades.
-- [ ] **Robustness Score:** Calculate the probability of ruin based on these variations.
-
----
-
-## Milestone 6: Strategy Library Expansion
-**Goal:** Implement diverse algorithmic archetypes to find a robust "Edge" across different market conditions.
-
-- [ ] **Mean Reversion (RSI/Bollinger):** Exploit "overextended" prices returning to the average. Best for ranging markets.
-- [ ] **Trend Following (MACD/EMA Cross):** Ride momentum in trending markets. Focus on "cutting losers short and letting winners run."
-- [ ] **Volatility Breakout (Donchian/ATR):** Enter trades when price breaks out of a defined volatility range, signaling the start of a new trend.
-- [ ] **Opening Range Breakout (ORB):** Capture the high-volume volatility seen in the first 30–60 minutes of the market session.
-
----
-
-## Strategy Recommendations for Discovery
-
-1. **Mean Reversion + Volatility Filter:** Use RSI but only enter when **Bollinger Band Width** is high (high volatility) or low (squeeze), adding a statistical "reason" for the reversal.
-2. **EMA Trend + Chandelier Exit:** Use a fast/slow EMA cross for entry, but use an **ATR-based trailing stop** (Chandelier Exit) to protect capital during the trend.
-3. **Statistical Arbitrage (Pairs):** Trade the spread between two highly correlated assets (e.g., SPY vs IVV). This requires updating `src/data.py` to load multiple tickers simultaneously.
+- [ ] **Monte Carlo Simulation:** Run 1,000 iterations with shuffled returns and random trade "drops."
+- [ ] **Black Swan Simulation:** Stress test the strategy against extreme historical events (e.g., 2008 crash, 2020 COVID flash, overnight gaps).
+- [ ] **Strategy Invariant Tests:** Verify logic on artificial "perfect" data (e.g., perfect sine waves) to confirm mathematical correctness.
 
 ---
 
 ## Agent Operational Rules
 
-1. **Config-First:** Every new variable (slippage, search ranges, strategy thresholds) MUST be added to `src/config.py`. Do not use CLI flags.
-2. **Stateless Logic:** Strategies in `src/strategies/` must remain stateless; they receive a window of data and return a signal.
-3. **Traceability:** Every execution of `run_backtest.py` should log its results to a `/results/` directory with a timestamp and the configuration used.
+1. **Config-First:** Every new variable (friction, search ranges, risk parameters) MUST be added to `src/config.py`. No CLI flags.
+2. **Stateless Logic:** Strategies in `src/strategies/` must remain stateless; they receive data and return a signal.
+3. **Traceability:** Every backtest run must log its results to a `/results/` directory with a timestamp and the configuration used.
+4. **CI-Ready Code:** All new code must pass `ruff` and `pytest` locally before being considered "Done."
