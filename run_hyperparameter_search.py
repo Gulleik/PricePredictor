@@ -1,9 +1,7 @@
 """Run hyperparameter search for SMA crossover and report best parameters."""
 
 from src.config import (
-    DEFAULT_END,
     DEFAULT_INIT_CASH,
-    DEFAULT_START,
     DEFAULT_TIMEFRAME,
     FAST_WINDOWS,
     HYPERPARAM_SYMBOL,
@@ -12,15 +10,17 @@ from src.config import (
     SLOW_WINDOWS,
 )
 from src.data import load_crypto_bars
+from src.date_range import get_default_date_range
 from src.strategies.sma_crossover import run_scan
 
 
 def main() -> None:
     symbol = HYPERPARAM_SYMBOL
+    start, end = get_default_date_range()
     price = load_crypto_bars(
         symbol,
-        start=DEFAULT_START,
-        end=DEFAULT_END,
+        start=start,
+        end=end,
         timeframe=DEFAULT_TIMEFRAME,
     )
 
@@ -46,7 +46,11 @@ def main() -> None:
     best_value = metric_series.max()
 
     print(f"Hyperparameter search ({SCAN_OBJECTIVE})")
-    print(f"  Best: fast={best_fast}, slow={best_slow} -> {SCAN_OBJECTIVE}={best_value:.4f}")
+    print(
+        "  Best: "
+        f"fast={best_fast}, slow={best_slow} -> "
+        f"{SCAN_OBJECTIVE}={best_value:.4f}"
+    )
     print()
     print("Best parameter stats:")
     print(pf[best_col].stats())

@@ -35,11 +35,16 @@ def test_main_uses_config_values(monkeypatch, capsys) -> None:
     monkeypatch.setattr(run_hyperparameter_search, "HYPERPARAM_SYMBOL", "ETH/USD")
     monkeypatch.setattr(run_hyperparameter_search, "HYPERPARAM_TOP_N", 2)
     monkeypatch.setattr(run_hyperparameter_search, "SCAN_OBJECTIVE", "sharpe_ratio")
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "get_default_date_range",
+        lambda: ("2024-01-01T00:00:00+00:00", "2025-01-01T00:00:00+00:00"),
+    )
 
     def fake_load_crypto_bars(symbol, start, end, timeframe):
         assert symbol == run_hyperparameter_search.HYPERPARAM_SYMBOL
-        assert start == run_hyperparameter_search.DEFAULT_START
-        assert end == run_hyperparameter_search.DEFAULT_END
+        assert start == "2024-01-01T00:00:00+00:00"
+        assert end == "2025-01-01T00:00:00+00:00"
         assert timeframe == run_hyperparameter_search.DEFAULT_TIMEFRAME
         return "price-series"
 

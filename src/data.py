@@ -1,18 +1,64 @@
 """Load crypto bars from Alpaca via alpaca-py CryptoHistoricalDataClient."""
 
+import hashlib
 import os
 from datetime import datetime
+from pathlib import Path
 from typing import Union
 
 import pandas as pd
-from dateparser import parse as parse_date
-from dotenv import load_dotenv
-
 from alpaca.data.historical import CryptoHistoricalDataClient
 from alpaca.data.requests import CryptoBarsRequest
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
+from dateparser import parse as parse_date
+from dotenv import load_dotenv
+
+from src.config import CACHE_DIR, CACHE_ENABLED
 
 load_dotenv()
+
+
+def _cache_filename(
+    symbol: str, start_dt: datetime, end_dt: datetime, timeframe: TimeFrame
+) -> str:
+    """Build a deterministic cache filename from request inputs."""
+    key = (
+        f"{symbol}|{start_dt.isoformat()}|{end_dt.isoformat()}|"
+        f"{timeframe.amount}|{timeframe.unit.name}"
+    )
+    digest = hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
+    safe_symbol = symbol.replace("/", "-").replace(":", "-")
+    return f"{safe_symbol}_{digest}.parquet"
+
+
+def _get_cache_path(
+    symbol: str,
+    start_dt: datetime,
+    end_dt: datetime,
+    timeframe: TimeFrame,
+) -> Path:
+    """Return cache path under configured cache directory."""
+    cache_dir = Path(CACHE_DIR)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir / _cache_filename(symbol, start_dt, end_dt, timeframe)
+
+
+def _load_from_cache(cache_path: Path) -> Union[pd.Series, None]:
+    """Load a close-price series from local cache if available."""
+    if not CACHE_ENABLED or not cache_path.exists():
+        return None
+
+    cached_df = pd.read_parquet(cache_path)
+    if "close" not in cached_df.columns:
+        raise ValueError(f"Cache file is missing required 'close' column: {cache_path}")
+    return cached_df["close"].sort_index()
+
+
+def _save_to_cache(cache_path: Path, price: pd.Series) -> None:
+    """Persist close-price series as parquet for fast repeat access."""
+    if not CACHE_ENABLED:
+        return
+    price.sort_index().to_frame(name="close").to_parquet(cache_path)
 
 
 def _parse_timeframe(timeframe: str) -> TimeFrame:
@@ -65,16 +111,27 @@ def load_crypto_bars(
     Returns:
         Price series (Close) as pandas Series for use with VectorBT.
     """
+    start_dt = _parse_datetime(start)
+    end_dt = _parse_datetime(end)
+    tf = _parse_timeframe(timeframe)
+    cache_path = _get_cache_path(symbol, start_dt, end_dt, tf)
+
+    cached_price = _load_from_cache(cache_path)
+    if cached_price is not None:
+        print(f"Using cache: {cache_path}")
+        return cached_price
+
+    if CACHE_ENABLED:
+        print(f"Cache miss: fetching data from Alpaca for {symbol}")
+    else:
+        print(f"Cache disabled: fetching data from Alpaca for {symbol}")
+
     key = os.getenv("ALPACA_API_KEY")
     secret = os.getenv("ALPACA_API_SECRET")
     client = CryptoHistoricalDataClient(
         api_key=key or "",
         secret_key=secret or "",
     )
-
-    start_dt = _parse_datetime(start)
-    end_dt = _parse_datetime(end)
-    tf = _parse_timeframe(timeframe)
 
     request = CryptoBarsRequest(
         symbol_or_symbols=symbol,
@@ -91,4 +148,5 @@ def load_crypto_bars(
     if isinstance(df.index, pd.MultiIndex) and "symbol" in df.index.names:
         df = df.loc[symbol]
     price = df["close"].sort_index()
+    _save_to_cache(cache_path, price)
     return price
