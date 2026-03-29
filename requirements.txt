@@ -3,3 +3,5 @@ vectorbt
 python-dotenv
 dateparser
 pytest
+ruff
+pyarrow

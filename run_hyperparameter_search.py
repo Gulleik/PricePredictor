@@ -46,7 +46,11 @@ def main() -> None:
     best_value = metric_series.max()
 
     print(f"Hyperparameter search ({SCAN_OBJECTIVE})")
-    print(f"  Best: fast={best_fast}, slow={best_slow} -> {SCAN_OBJECTIVE}={best_value:.4f}")
+    print(
+        "  Best: "
+        f"fast={best_fast}, slow={best_slow} -> "
+        f"{SCAN_OBJECTIVE}={best_value:.4f}"
+    )
     print()
     print("Best parameter stats:")
     print(pf[best_col].stats())

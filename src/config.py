@@ -1,5 +1,7 @@
 """Default configuration for backtesting."""
 
+from pathlib import Path
+
 # Default symbols for crypto backtesting
 DEFAULT_SYMBOLS = ["BTC/USD", "ETH/USD"]
 
@@ -26,3 +28,7 @@ SCAN_OBJECTIVE = "sharpe_ratio"
 FAST_WINDOWS = [5, 10, 15, 20, 25]
 SLOW_WINDOWS = [30, 40, 50, 60]
 HYPERPARAM_TOP_N = 5
+
+# Data cache settings
+CACHE_ENABLED = True
+CACHE_DIR = Path("data")
