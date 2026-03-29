@@ -118,8 +118,13 @@ def load_crypto_bars(
 
     cached_price = _load_from_cache(cache_path)
     if cached_price is not None:
-        print(f"Cache hit: {cache_path}")
+        print(f"Using cache: {cache_path}")
         return cached_price
+
+    if CACHE_ENABLED:
+        print(f"Cache miss: fetching data from Alpaca for {symbol}")
+    else:
+        print(f"Cache disabled: fetching data from Alpaca for {symbol}")
 
     key = os.getenv("ALPACA_API_KEY")
     secret = os.getenv("ALPACA_API_SECRET")

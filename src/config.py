@@ -1,6 +1,7 @@
 """Default configuration for backtesting."""
 
 from pathlib import Path
+from typing import Literal
 
 # Default symbols for crypto backtesting
 DEFAULT_SYMBOLS = ["BTC/USD", "ETH/USD"]
@@ -9,9 +10,9 @@ DEFAULT_SYMBOLS = ["BTC/USD", "ETH/USD"]
 BACKTEST_SYMBOL = DEFAULT_SYMBOLS[0]
 HYPERPARAM_SYMBOL = DEFAULT_SYMBOLS[0]
 
-# Default date range (use relative dates for fresh data)
-DEFAULT_START = "1 year ago UTC"
-DEFAULT_END = "now UTC"
+# Default date range settings
+DATE_REFRESH_CADENCE: Literal["month", "week", "day"] = "week"
+DEFAULT_LOOKBACK_DAYS = 365
 
 # Default timeframe for bars
 DEFAULT_TIMEFRAME = "1d"
@@ -22,6 +23,7 @@ DEFAULT_INIT_CASH = 10_000.0
 # Single-run SMA defaults
 BACKTEST_FAST_WINDOW = 5
 BACKTEST_SLOW_WINDOW = 15
+BACKTEST_RENDER_CHART = True
 
 # Hyperparameter search defaults
 SCAN_OBJECTIVE = "sharpe_ratio"
