@@ -103,8 +103,9 @@ def audit_survivorship_bias(
     observed_bars = len(price)
     gap_fraction = max((expected_bars - observed_bars) / expected_bars, 0.0)
 
-    starts_late = price.index[0].to_pydatetime() > (requested_start + interval)
-    ends_early = price.index[-1].to_pydatetime() < (requested_end - interval)
+    # Flag any case where the data does not reach the requested window boundaries.
+    starts_late = price.index[0].to_pydatetime() > requested_start
+    ends_early = price.index[-1].to_pydatetime() < requested_end
 
     if starts_late:
         warnings.append(
