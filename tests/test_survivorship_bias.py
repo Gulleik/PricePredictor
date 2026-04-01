@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 
 import pandas as pd
+import pytest
 
 from src.validators import audit_survivorship_bias, detect_data_gaps
 
@@ -53,3 +54,48 @@ def test_audit_survivorship_gap_fraction_threshold_warning() -> None:
 
     assert report["gap_fraction"] > 0.05
     assert any("exceeds threshold" in warning for warning in report["warnings"])
+
+
+def test_audit_survivorship_rejects_naive_requested_start() -> None:
+    """Audit should raise when requested_start is timezone-naive."""
+    index = pd.date_range("2024-01-01", periods=3, freq="D", tz="UTC")
+    series = pd.Series([10.0, 11.0, 12.0], index=index)
+
+    with pytest.raises(ValueError, match="requested_start"):
+        audit_survivorship_bias(
+            series,
+            symbol="BTC/USD",
+            requested_start=datetime(2024, 1, 1),
+            requested_end=datetime(2024, 1, 3, tzinfo=timezone.utc),
+            timeframe="1d",
+        )
+
+
+def test_audit_survivorship_rejects_non_utc_requested_end() -> None:
+    """Audit should raise when requested_end is not UTC."""
+    index = pd.date_range("2024-01-01", periods=3, freq="D", tz="UTC")
+    series = pd.Series([10.0, 11.0, 12.0], index=index)
+
+    with pytest.raises(ValueError, match="requested_end"):
+        audit_survivorship_bias(
+            series,
+            symbol="BTC/USD",
+            requested_start=datetime(2024, 1, 1, tzinfo=timezone.utc),
+            requested_end=datetime.fromisoformat("2024-01-03T00:00:00+01:00"),
+            timeframe="1d",
+        )
+
+
+def test_audit_survivorship_rejects_reversed_window() -> None:
+    """Audit should raise when requested_end is before requested_start."""
+    index = pd.date_range("2024-01-01", periods=3, freq="D", tz="UTC")
+    series = pd.Series([10.0, 11.0, 12.0], index=index)
+
+    with pytest.raises(ValueError, match="requested_end"):
+        audit_survivorship_bias(
+            series,
+            symbol="BTC/USD",
+            requested_start=datetime(2024, 1, 3, tzinfo=timezone.utc),
+            requested_end=datetime(2024, 1, 1, tzinfo=timezone.utc),
+            timeframe="1d",
+        )

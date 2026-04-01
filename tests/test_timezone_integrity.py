@@ -68,3 +68,47 @@ def test_parse_datetime_returns_aware_string_parse() -> None:
     parsed = data_module._parse_datetime("2024-01-01")
     assert parsed.tzinfo is not None
     assert parsed.utcoffset() == timezone.utc.utcoffset(parsed)
+
+
+def test_load_crypto_bars_cache_path_skips_duplicate_validation(
+    monkeypatch, tmp_path
+) -> None:
+    """When auditing is enabled, cache path should not call direct UTC validation."""
+    import src.data as data_module
+
+    monkeypatch.setattr(data_module, "CACHE_ENABLED", True)
+    monkeypatch.setattr(data_module, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(data_module, "ENFORCE_UTC_INDEX", True)
+    monkeypatch.setattr(data_module, "AUDIT_SURVIVORSHIP", True)
+
+    start_dt = data_module._parse_datetime("2024-01-01")
+    end_dt = data_module._parse_datetime("2024-01-03")
+    cache_path = data_module._get_cache_path(
+        "BTC/USD",
+        start_dt,
+        end_dt,
+        data_module._parse_timeframe("1d"),
+    )
+
+    utc_index = pd.date_range("2024-01-01", periods=2, freq="D", tz="UTC")
+    pd.Series([100.0, 101.0], index=utc_index, name="close").to_frame(
+        name="close"
+    ).to_parquet(cache_path)
+
+    direct_validate_calls = {"count": 0}
+    audit_calls = {"count": 0}
+
+    def _count_direct_validate(series: pd.Series, field_name: str = "price") -> None:
+        direct_validate_calls["count"] += 1
+
+    def _fake_audit(*args, **kwargs):
+        audit_calls["count"] += 1
+        return {"warnings": []}
+
+    monkeypatch.setattr(data_module, "validate_utc_index", _count_direct_validate)
+    monkeypatch.setattr(data_module, "audit_survivorship_bias", _fake_audit)
+
+    data_module.load_crypto_bars("BTC/USD", "2024-01-01", "2024-01-03")
+
+    assert direct_validate_calls["count"] == 0
+    assert audit_calls["count"] == 1

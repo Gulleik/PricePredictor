@@ -100,6 +100,35 @@ def _parse_datetime(value: Union[str, datetime]) -> datetime:
     return parsed
 
 
+def _run_data_integrity_checks(
+    price: pd.Series,
+    *,
+    symbol: str,
+    source_label: str,
+    requested_start: datetime,
+    requested_end: datetime,
+    timeframe: str,
+) -> None:
+    """Run configured integrity checks without duplicating UTC validation."""
+    if AUDIT_SURVIVORSHIP:
+        report = audit_survivorship_bias(
+            price,
+            symbol=symbol,
+            requested_start=requested_start,
+            requested_end=requested_end,
+            timeframe=timeframe,
+            max_gap_fraction=SURVIVORSHIP_MAX_GAP_FRACTION,
+        )
+        for warning in report["warnings"]:
+            print(f"Data integrity warning: {warning}")
+        if SURVIVORSHIP_FAIL_FAST and report["warnings"]:
+            raise ValueError(f"Survivorship audit failed for {symbol}")
+        return
+
+    if ENFORCE_UTC_INDEX:
+        validate_utc_index(price, field_name=f"{symbol} {source_label} price")
+
+
 def load_crypto_bars(
     symbol: str,
     start: str,
@@ -126,21 +155,14 @@ def load_crypto_bars(
 
     cached_price = _load_from_cache(cache_path)
     if cached_price is not None:
-        if ENFORCE_UTC_INDEX:
-            validate_utc_index(cached_price, field_name=f"{symbol} cached price")
-        if AUDIT_SURVIVORSHIP:
-            report = audit_survivorship_bias(
-                cached_price,
-                symbol=symbol,
-                requested_start=start_dt,
-                requested_end=end_dt,
-                timeframe=timeframe,
-                max_gap_fraction=SURVIVORSHIP_MAX_GAP_FRACTION,
-            )
-            for warning in report["warnings"]:
-                print(f"Data integrity warning: {warning}")
-            if SURVIVORSHIP_FAIL_FAST and report["warnings"]:
-                raise ValueError(f"Survivorship audit failed for {symbol}")
+        _run_data_integrity_checks(
+            cached_price,
+            symbol=symbol,
+            source_label="cached",
+            requested_start=start_dt,
+            requested_end=end_dt,
+            timeframe=timeframe,
+        )
         print(f"Using cache: {cache_path}")
         return cached_price
 
@@ -172,21 +194,14 @@ def load_crypto_bars(
         df = df.loc[symbol]
     price = df["close"].sort_index()
 
-    if ENFORCE_UTC_INDEX:
-        validate_utc_index(price, field_name=f"{symbol} API price")
-    if AUDIT_SURVIVORSHIP:
-        report = audit_survivorship_bias(
-            price,
-            symbol=symbol,
-            requested_start=start_dt,
-            requested_end=end_dt,
-            timeframe=timeframe,
-            max_gap_fraction=SURVIVORSHIP_MAX_GAP_FRACTION,
-        )
-        for warning in report["warnings"]:
-            print(f"Data integrity warning: {warning}")
-        if SURVIVORSHIP_FAIL_FAST and report["warnings"]:
-            raise ValueError(f"Survivorship audit failed for {symbol}")
+    _run_data_integrity_checks(
+        price,
+        symbol=symbol,
+        source_label="API",
+        requested_start=start_dt,
+        requested_end=end_dt,
+        timeframe=timeframe,
+    )
 
     _save_to_cache(cache_path, price)
     return price

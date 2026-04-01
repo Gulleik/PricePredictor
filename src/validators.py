@@ -13,6 +13,15 @@ class SurvivorshipAuditResult(dict[str, Any]):
     """Dictionary-like result payload for survivorship auditing."""
 
 
+def _validate_utc_datetime(value: datetime, field_name: str) -> None:
+    """Raise if a datetime is naive or not UTC."""
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError(f"{field_name} must be timezone-aware and UTC")
+
+    if value.utcoffset() != timedelta(0):
+        raise ValueError(f"{field_name} must be UTC")
+
+
 def _timeframe_to_timedelta(timeframe: str) -> timedelta:
     """Convert timeframe text like 1d/1h/15m into a timedelta."""
     if not timeframe:
@@ -81,6 +90,12 @@ def audit_survivorship_bias(
 ) -> SurvivorshipAuditResult:
     """Audit data continuity and range coverage for survivorship-bias risk signals."""
     validate_utc_index(price, field_name=f"{symbol} price")
+    _validate_utc_datetime(requested_start, "requested_start")
+    _validate_utc_datetime(requested_end, "requested_end")
+    if requested_end < requested_start:
+        raise ValueError(
+            "requested_end must be greater than or equal to requested_start"
+        )
 
     warnings: list[str] = []
     gaps = detect_data_gaps(price, timeframe=timeframe)
