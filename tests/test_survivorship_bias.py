@@ -9,9 +9,7 @@ from src.validators import audit_survivorship_bias, detect_data_gaps
 
 def test_detect_data_gaps_finds_missing_interval() -> None:
     """A missing timestamp interval should be reported as a gap."""
-    index = pd.to_datetime(
-        ["2024-01-01", "2024-01-02", "2024-01-05"], utc=True
-    )
+    index = pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-05"], utc=True)
     series = pd.Series([100.0, 101.0, 104.0], index=index)
 
     gaps = detect_data_gaps(series, timeframe="1d")

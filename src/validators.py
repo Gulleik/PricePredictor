@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
 
 import pandas as pd
@@ -52,7 +52,7 @@ def detect_data_gaps(
     *,
     timeframe: str = "1d",
 ) -> list[tuple[datetime, datetime]]:
-    """Return (prev_ts, next_ts) pairs where observed spacing exceeds expected spacing."""
+    """Return (prev_ts, next_ts) pairs with larger-than-expected spacing."""
     if len(series.index) < 2:
         return []
 
@@ -108,17 +108,28 @@ def audit_survivorship_bias(
 
     if starts_late:
         warnings.append(
-            f"{symbol}: data starts at {price.index[0].isoformat()}, after requested start {requested_start.isoformat()}"
+            (
+                f"{symbol}: data starts at {price.index[0].isoformat()}, "
+                f"after requested start {requested_start.isoformat()}"
+            )
         )
     if ends_early:
         warnings.append(
-            f"{symbol}: data ends at {price.index[-1].isoformat()}, before requested end {requested_end.isoformat()}"
+            (
+                f"{symbol}: data ends at {price.index[-1].isoformat()}, "
+                f"before requested end {requested_end.isoformat()}"
+            )
         )
     if gaps:
-        warnings.append(f"{symbol}: detected {len(gaps)} gap(s) larger than timeframe {timeframe}")
+        warnings.append(
+            f"{symbol}: detected {len(gaps)} gap(s) larger than timeframe {timeframe}"
+        )
     if gap_fraction > max_gap_fraction:
         warnings.append(
-            f"{symbol}: missing-bar fraction {gap_fraction:.2%} exceeds threshold {max_gap_fraction:.2%}"
+            (
+                f"{symbol}: missing-bar fraction {gap_fraction:.2%} "
+                f"exceeds threshold {max_gap_fraction:.2%}"
+            )
         )
 
     return SurvivorshipAuditResult(
@@ -146,9 +157,12 @@ def validate_no_future_leakage(
 
     shocked = price.copy()
     tail_len = len(shocked) - perturb_from
-    shocked.iloc[perturb_from:] = pd.Series(
-        range(tail_len, 0, -1), index=shocked.index[perturb_from:], dtype=float
-    ) * -1_000_000.0
+    shocked.iloc[perturb_from:] = (
+        pd.Series(
+            range(tail_len, 0, -1), index=shocked.index[perturb_from:], dtype=float
+        )
+        * -1_000_000.0
+    )
     candidate = compute_signal(shocked).fillna(False)
 
     if not baseline.iloc[:perturb_from].equals(candidate.iloc[:perturb_from]):
