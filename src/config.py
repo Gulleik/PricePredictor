@@ -23,7 +23,7 @@ DEFAULT_INIT_CASH = 10_000.0
 # Single-run SMA defaults
 BACKTEST_FAST_WINDOW = 5
 BACKTEST_SLOW_WINDOW = 15
-BACKTEST_RENDER_CHART = True
+BACKTEST_RENDER_CHART = False
 
 # Hyperparameter search defaults
 SCAN_OBJECTIVE = "sharpe_ratio"
@@ -34,3 +34,9 @@ HYPERPARAM_TOP_N = 5
 # Data cache settings
 CACHE_ENABLED = True
 CACHE_DIR = Path("data")
+
+# Data integrity settings (Milestone 2)
+ENFORCE_UTC_INDEX = True
+AUDIT_SURVIVORSHIP = True
+SURVIVORSHIP_MAX_GAP_FRACTION = 0.05
+SURVIVORSHIP_FAIL_FAST = False

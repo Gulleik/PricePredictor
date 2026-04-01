@@ -13,6 +13,12 @@ def run(
     fast: int = 10,
     slow: int = 30,
     init_cash: float = 10_000.0,
+    *,
+    next_bar_execution: bool = False,
+    fees: float = 0.0,
+    fixed_fees: float = 0.0,
+    slippage: float = 0.0,
+    max_size: Any | None = None,
 ) -> tuple[Any, Any, Any]:
     """
     Run SMA crossover backtest.
@@ -24,11 +30,26 @@ def run(
     slow_ma = vbt.MA.run(price, slow)
     entries = fast_ma.ma_crossed_above(slow_ma)
     exits = fast_ma.ma_crossed_below(slow_ma)
+
+    # Shift execution to next bar to avoid same-bar signal fills when requested.
+    if next_bar_execution:
+        entries = entries.vbt.fshift(1).fillna(False).astype(bool)
+        exits = exits.vbt.fshift(1).fillna(False).astype(bool)
+
+    portfolio_kwargs: dict[str, Any] = {
+        "init_cash": init_cash,
+        "fees": fees,
+        "fixed_fees": fixed_fees,
+        "slippage": slippage,
+    }
+    if max_size is not None:
+        portfolio_kwargs["max_size"] = max_size
+
     pf = vbt.Portfolio.from_signals(
         price,
         entries,
         exits,
-        init_cash=init_cash,
+        **portfolio_kwargs,
     )
     return pf, fast_ma, slow_ma
 
