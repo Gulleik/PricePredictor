@@ -1,0 +1,6 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "pytest": true,
+        ".\\.venv\\Scripts\\pytest.exe": true
+    }
+}

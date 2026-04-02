@@ -40,3 +40,11 @@ ENFORCE_UTC_INDEX = True
 AUDIT_SURVIVORSHIP = True
 SURVIVORSHIP_MAX_GAP_FRACTION = 0.05
 SURVIVORSHIP_FAIL_FAST = False
+
+# Execution fidelity & risk settings (Milestone 3)
+ENABLE_FRICTION_MODEL = True           # Toggle friction costs on/off
+BROKER_COMMISSION_PCT = 0.001          # 0.1% per-trade commission
+BROKER_FIXED_FEE = 1.0                 # $1 flat fee per trade
+BROKER_SLIPPAGE_PCT = 0.002            # 0.2% slippage (bid-ask spread)
+MAX_VOLUME_PARTICIPATION = 0.10        # 10% of bar volume max position size
+KELLY_FACTOR = 0.25                    # Conservative: 25% of theoretical Kelly

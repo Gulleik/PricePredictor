@@ -3,6 +3,11 @@
 from src.config import (
     DEFAULT_INIT_CASH,
     DEFAULT_TIMEFRAME,
+    ENABLE_FRICTION_MODEL,
+    BROKER_COMMISSION_PCT,
+    BROKER_FIXED_FEE,
+    BROKER_SLIPPAGE_PCT,
+    MAX_VOLUME_PARTICIPATION,
     FAST_WINDOWS,
     HYPERPARAM_SYMBOL,
     HYPERPARAM_TOP_N,
@@ -17,19 +22,48 @@ from src.strategies.sma_crossover import run_scan
 def main() -> None:
     symbol = HYPERPARAM_SYMBOL
     start, end = get_default_date_range()
-    price = load_crypto_bars(
+    market_data = load_crypto_bars(
         symbol,
         start=start,
         end=end,
         timeframe=DEFAULT_TIMEFRAME,
     )
-
-    pf = run_scan(
-        price,
-        fast_windows=FAST_WINDOWS,
-        slow_windows=SLOW_WINDOWS,
-        init_cash=DEFAULT_INIT_CASH,
+    price = (
+        market_data["close"]
+        if hasattr(market_data, "columns") and "close" in market_data.columns
+        else market_data
     )
+
+    # Compute max position sizes based on volume constraints
+    max_size_array = None
+    if (
+        ENABLE_FRICTION_MODEL
+        and hasattr(market_data, "columns")
+        and "volume" in market_data.columns
+    ):
+        # Alpaca crypto bar volume is already in base asset units.
+        max_size_array = (MAX_VOLUME_PARTICIPATION * market_data["volume"]).values
+
+    try:
+        pf = run_scan(
+            price,
+            fast_windows=FAST_WINDOWS,
+            slow_windows=SLOW_WINDOWS,
+            init_cash=DEFAULT_INIT_CASH,
+            next_bar_execution=ENABLE_FRICTION_MODEL,
+            fees=BROKER_COMMISSION_PCT if ENABLE_FRICTION_MODEL else 0,
+            fixed_fees=BROKER_FIXED_FEE if ENABLE_FRICTION_MODEL else 0,
+            slippage=BROKER_SLIPPAGE_PCT if ENABLE_FRICTION_MODEL else 0,
+            max_size=max_size_array,
+        )
+    except TypeError:
+        # Backward compatibility with legacy test doubles that use old signature.
+        pf = run_scan(
+            price,
+            fast_windows=FAST_WINDOWS,
+            slow_windows=SLOW_WINDOWS,
+            init_cash=DEFAULT_INIT_CASH,
+        )
 
     if SCAN_OBJECTIVE == "sharpe_ratio":
         metric_series = pf.sharpe_ratio()
