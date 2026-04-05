@@ -46,14 +46,23 @@ def test_load_crypto_bars_uses_cache_when_available(monkeypatch, tmp_path) -> No
     monkeypatch.setattr(data_module, "CACHE_DIR", tmp_path)
 
     index = pd.date_range("2024-01-01", periods=2, freq="D", tz="UTC")
-    expected = pd.Series([10.0, 11.0], index=index, name="close")
+    expected = pd.DataFrame(
+        {
+            "open": [9.5, 10.5],
+            "high": [10.5, 11.5],
+            "low": [9.0, 10.0],
+            "close": [10.0, 11.0],
+            "volume": [100.0, 120.0],
+        },
+        index=index,
+    )
     cache_path = data_module._get_cache_path(
         "BTC/USD",
         _parse_datetime("2024-01-01"),
         _parse_datetime("2024-01-03"),
         _parse_timeframe("1d"),
     )
-    expected.to_frame(name="close").to_parquet(cache_path)
+    expected.to_parquet(cache_path)
 
     class _UnexpectedClient:
         def __init__(self, *args, **kwargs) -> None:
@@ -64,7 +73,7 @@ def test_load_crypto_bars_uses_cache_when_available(monkeypatch, tmp_path) -> No
 
     actual = load_crypto_bars("BTC/USD", "2024-01-01", "2024-01-03", timeframe="1d")
 
-    pd.testing.assert_series_equal(actual, expected, check_freq=False)
+    pd.testing.assert_frame_equal(actual, expected, check_freq=False)
 
 
 def test_load_crypto_bars_calls_api_on_cache_miss_and_saves(
@@ -77,7 +86,16 @@ def test_load_crypto_bars_calls_api_on_cache_miss_and_saves(
     monkeypatch.setattr(data_module, "CACHE_DIR", tmp_path)
 
     index = pd.date_range("2024-01-01", periods=3, freq="D", tz="UTC")
-    response_df = pd.DataFrame({"close": [20.0, 21.0, 22.0]}, index=index)
+    response_df = pd.DataFrame(
+        {
+            "open": [19.5, 20.5, 21.5],
+            "high": [20.5, 21.5, 22.5],
+            "low": [19.0, 20.0, 21.0],
+            "close": [20.0, 21.0, 22.0],
+            "volume": [200.0, 210.0, 220.0],
+        },
+        index=index,
+    )
 
     class _BarsResponse:
         def __init__(self, df: pd.DataFrame) -> None:
@@ -100,7 +118,7 @@ def test_load_crypto_bars_calls_api_on_cache_miss_and_saves(
     actual = load_crypto_bars("BTC/USD", "2024-01-01", "2024-01-04", timeframe="1d")
 
     assert _Client.called == 1
-    pd.testing.assert_series_equal(actual, response_df["close"])
+    pd.testing.assert_frame_equal(actual, response_df, check_freq=False)
 
     expected_cache_path = data_module._get_cache_path(
         "BTC/USD",

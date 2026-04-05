@@ -53,8 +53,15 @@ def test_load_crypto_bars_rejects_naive_cache_index(monkeypatch, tmp_path) -> No
     )
 
     naive_index = pd.date_range("2024-01-01", periods=2, freq="D")
-    pd.Series([100.0, 101.0], index=naive_index, name="close").to_frame(
-        name="close"
+    pd.DataFrame(
+        {
+            "open": [99.0, 100.0],
+            "high": [101.0, 102.0],
+            "low": [98.0, 99.0],
+            "close": [100.0, 101.0],
+            "volume": [10.0, 12.0],
+        },
+        index=naive_index,
     ).to_parquet(cache_path)
 
     with pytest.raises(ValueError, match="timezone-aware"):
@@ -91,8 +98,15 @@ def test_load_crypto_bars_cache_path_skips_duplicate_validation(
     )
 
     utc_index = pd.date_range("2024-01-01", periods=2, freq="D", tz="UTC")
-    pd.Series([100.0, 101.0], index=utc_index, name="close").to_frame(
-        name="close"
+    pd.DataFrame(
+        {
+            "open": [99.0, 100.0],
+            "high": [101.0, 102.0],
+            "low": [98.0, 99.0],
+            "close": [100.0, 101.0],
+            "volume": [10.0, 12.0],
+        },
+        index=utc_index,
     ).to_parquet(cache_path)
 
     direct_validate_calls = {"count": 0}
