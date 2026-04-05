@@ -1,36 +1,22 @@
 """Broker model and execution abstraction for friction costs and volume constraints."""
 
-from typing import Any
+from dataclasses import dataclass
+from typing import Protocol
 
 import numpy as np
 import pandas as pd
 
 
+@dataclass(frozen=True)
 class BrokerModel:
     """Centralized configuration for broker friction costs and constraints."""
 
-    def __init__(
-        self,
-        commission_pct: float,
-        fixed_fee: float,
-        slippage_pct: float,
-        max_volume_participation: float,
-    ) -> None:
-        """
-        Initialize broker model with friction and volume parameters.
+    commission_pct: float
+    fixed_fee: float
+    slippage_pct: float
+    max_volume_participation: float
 
-        Args:
-            commission_pct: Percentage commission per trade (e.g., 0.001 for 0.1%).
-            fixed_fee: Fixed fee in currency per trade (e.g., 1.0 for $1).
-            slippage_pct: Percentage slippage (bid-ask spread, e.g., 0.002 for 0.2%).
-            max_volume_participation: Max fraction of bar volume for a position (e.g., 0.1).
-        """
-        self.commission_pct = commission_pct
-        self.fixed_fee = fixed_fee
-        self.slippage_pct = slippage_pct
-        self.max_volume_participation = max_volume_participation
-
-    def build_friction_kwargs(self, enable_friction: bool) -> dict[str, Any]:
+    def build_friction_kwargs(self, enable_friction: bool) -> dict[str, float]:
         """
         Build VectorBT Portfolio.from_signals() friction kwargs.
 
@@ -40,18 +26,14 @@ class BrokerModel:
         Returns:
             Dictionary with keys: fees, fixed_fees, slippage.
         """
-        if enable_friction:
-            return {
-                "fees": self.commission_pct,
-                "fixed_fees": self.fixed_fee,
-                "slippage": self.slippage_pct,
-            }
-        else:
-            return {
-                "fees": 0.0,
-                "fixed_fees": 0.0,
-                "slippage": 0.0,
-            }
+        if not enable_friction:
+            return {"fees": 0.0, "fixed_fees": 0.0, "slippage": 0.0}
+
+        return {
+            "fees": self.commission_pct,
+            "fixed_fees": self.fixed_fee,
+            "slippage": self.slippage_pct,
+        }
 
     def compute_max_size_array(
         self, market_data: pd.DataFrame | pd.Series, enable: bool = True
@@ -79,14 +61,21 @@ class BrokerModel:
             return None
 
         # Max size = max_volume_participation * bar_volume
-        max_size_array = (
-            self.max_volume_participation * market_data["volume"]
-        ).values
+        max_size_array = (self.max_volume_participation * market_data["volume"]).values
 
         return max_size_array
 
 
-def build_broker_model_from_config(config_module: Any) -> BrokerModel:
+class BrokerConfig(Protocol):
+    """Protocol for config modules used to initialize BrokerModel."""
+
+    BROKER_COMMISSION_PCT: float
+    BROKER_FIXED_FEE: float
+    BROKER_SLIPPAGE_PCT: float
+    MAX_VOLUME_PARTICIPATION: float
+
+
+def build_broker_model_from_config(config_module: BrokerConfig) -> BrokerModel:
     """
     Factory function to build BrokerModel from config module.
 

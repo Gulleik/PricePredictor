@@ -9,22 +9,24 @@ from src.config import (
     BACKTEST_RENDER_CHART,
     BACKTEST_SLOW_WINDOW,
     BACKTEST_SYMBOL,
+    BROKER_COMMISSION_PCT,
+    BROKER_FIXED_FEE,
+    BROKER_SLIPPAGE_PCT,
     DEFAULT_INIT_CASH,
     DEFAULT_TIMEFRAME,
     ENABLE_NEXT_BAR_EXECUTION,
     ENABLE_FRICTION_MODEL,
     KELLY_FACTOR,
+    MAX_VOLUME_PARTICIPATION,
 )
-from src.data import load_crypto_bars
+from src.data import get_close_price_series, load_crypto_bars
 from src.date_range import get_default_date_range
-from src.models.broker import build_broker_model_from_config
+from src.models.broker import BrokerModel
 from src.models.risk import (
-    compute_kelly_fraction,
     estimate_conservative_kelly,
     generate_position_sizes,
 )
 from src.strategies.sma_crossover import run as sma_run
-import src.config
 
 
 def main() -> None:
@@ -38,15 +40,16 @@ def main() -> None:
         end=end,
         timeframe=DEFAULT_TIMEFRAME,
     )
-    price = (
-        market_data["close"]
-        if hasattr(market_data, "columns") and "close" in market_data.columns
-        else market_data
-    )
+    price = get_close_price_series(market_data)
     print(f"[1/4] Done in {time.perf_counter() - t0:.2f}s ({len(price)} bars)")
 
     # Initialize broker model for friction and volume constraints
-    broker = build_broker_model_from_config(src.config)
+    broker = BrokerModel(
+        commission_pct=BROKER_COMMISSION_PCT,
+        fixed_fee=BROKER_FIXED_FEE,
+        slippage_pct=BROKER_SLIPPAGE_PCT,
+        max_volume_participation=MAX_VOLUME_PARTICIPATION,
+    )
     max_size_array = broker.compute_max_size_array(market_data, enable=ENABLE_FRICTION_MODEL)
     friction_kwargs = broker.build_friction_kwargs(enable_friction=ENABLE_FRICTION_MODEL)
 

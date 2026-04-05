@@ -141,6 +141,13 @@ def _run_data_integrity_checks(
         validate_utc_index(price, field_name=f"{symbol} {source_label} price")
 
 
+def get_close_price_series(market_data: pd.DataFrame | pd.Series) -> pd.Series:
+    """Return close price series from OHLCV data or pass through price series."""
+    if hasattr(market_data, "columns") and "close" in market_data.columns:
+        return market_data["close"]
+    return market_data
+
+
 def load_crypto_bars(
     symbol: str,
     start: str,
