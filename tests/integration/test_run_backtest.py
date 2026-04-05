@@ -69,12 +69,12 @@ def test_main_uses_config_values_and_runs_flow(monkeypatch, capsys) -> None:
     fast_ma = SimpleNamespace(
         ma=SimpleNamespace(vbt=_DummyPlotter(figure)),
         ma_crossed_above=lambda x: pd.Series([False, False, False]),
-        ma_crossed_below=lambda x: pd.Series([False, False, False])
+        ma_crossed_below=lambda x: pd.Series([False, False, False]),
     )
     slow_ma = SimpleNamespace(
         ma=SimpleNamespace(vbt=_DummyPlotter(figure)),
         ma_crossed_above=lambda x: pd.Series([False, False, False]),
-        ma_crossed_below=lambda x: pd.Series([False, False, False])
+        ma_crossed_below=lambda x: pd.Series([False, False, False]),
     )
 
     monkeypatch.setattr(run_backtest, "BACKTEST_SYMBOL", "LTC/USD")
@@ -161,12 +161,12 @@ def test_main_skips_chart_when_disabled(monkeypatch, capsys) -> None:
     fast_ma = SimpleNamespace(
         ma=SimpleNamespace(vbt=object()),
         ma_crossed_above=lambda x: pd.Series([False, False, False]),
-        ma_crossed_below=lambda x: pd.Series([False, False, False])
+        ma_crossed_below=lambda x: pd.Series([False, False, False]),
     )
     slow_ma = SimpleNamespace(
         ma=SimpleNamespace(vbt=object()),
         ma_crossed_above=lambda x: pd.Series([False, False, False]),
-        ma_crossed_below=lambda x: pd.Series([False, False, False])
+        ma_crossed_below=lambda x: pd.Series([False, False, False]),
     )
 
     monkeypatch.setattr(run_backtest, "BACKTEST_SYMBOL", "LTC/USD")

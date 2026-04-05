@@ -65,10 +65,12 @@ class TestBrokerModel:
             max_volume_participation=0.1,
         )
 
-        market_data = pd.DataFrame({
-            "volume": [1000.0, 2000.0, 1500.0],
-            "close": [100.0, 101.0, 102.0],
-        })
+        market_data = pd.DataFrame(
+            {
+                "volume": [1000.0, 2000.0, 1500.0],
+                "close": [100.0, 101.0, 102.0],
+            }
+        )
 
         max_size = broker.compute_max_size_array(market_data, enable=True)
 
@@ -84,10 +86,12 @@ class TestBrokerModel:
             max_volume_participation=0.1,
         )
 
-        market_data = pd.DataFrame({
-            "volume": [1000.0, 2000.0],
-            "close": [100.0, 101.0],
-        })
+        market_data = pd.DataFrame(
+            {
+                "volume": [1000.0, 2000.0],
+                "close": [100.0, 101.0],
+            }
+        )
 
         max_size = broker.compute_max_size_array(market_data, enable=False)
 
@@ -102,9 +106,11 @@ class TestBrokerModel:
             max_volume_participation=0.1,
         )
 
-        market_data = pd.DataFrame({
-            "close": [100.0, 101.0],
-        })
+        market_data = pd.DataFrame(
+            {
+                "close": [100.0, 101.0],
+            }
+        )
 
         max_size = broker.compute_max_size_array(market_data, enable=True)
 
