@@ -204,7 +204,7 @@ def load_crypto_bars(
     df = bars.df
     if isinstance(df.index, pd.MultiIndex) and "symbol" in df.index.names:
         df = df.loc[symbol]
-    
+
     # Preserve full OHLCV; ensure required columns exist
     ohlcv = df[["open", "high", "low", "close", "volume"]].sort_index()
 

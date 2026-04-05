@@ -114,7 +114,7 @@ def run_scan(
     )
     entries = fast_ma.ma_crossed_above(slow_ma)
     exits = fast_ma.ma_crossed_below(slow_ma)
-    
+
     # Apply next-bar execution if requested
     if next_bar_execution:
         entries = entries.vbt.fshift(1)
@@ -127,7 +127,7 @@ def run_scan(
         # against (n_rows, n_cols). Convert (n_rows,) -> (n_rows, 1).
         if max_size_arr.ndim == 1:
             broadcast_max_size = max_size_arr.reshape(-1, 1)
-    
+
     pf = vbt.Portfolio.from_signals(
         price,
         entries,

@@ -10,5 +10,8 @@ else
   PYTHON_BIN="python"
 fi
 
+echo "Running lint checks (ruff) before push..."
+"$PYTHON_BIN" -m ruff check .
+
 echo "Running test suite (pytest) before push..."
 "$PYTHON_BIN" -m pytest
