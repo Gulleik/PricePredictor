@@ -2,7 +2,11 @@
 
 from types import SimpleNamespace
 
+import pytest
+
 import run_backtest
+
+pytestmark = pytest.mark.integration
 
 
 class _DummyFigure:

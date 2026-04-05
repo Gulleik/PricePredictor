@@ -7,6 +7,8 @@ import pytest
 
 from src.validators import validate_utc_index
 
+pytestmark = pytest.mark.unit
+
 
 def test_validate_utc_index_accepts_utc_series() -> None:
     """UTC-indexed price series should pass validation."""

@@ -5,6 +5,8 @@ import pytest
 
 import run_hyperparameter_search
 
+pytestmark = pytest.mark.integration
+
 
 class _DummyPortfolioSlice:
     def stats(self):

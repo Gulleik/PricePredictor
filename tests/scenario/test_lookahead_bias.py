@@ -8,6 +8,8 @@ import vectorbt as vbt
 from src.strategies.sma_crossover import run as sma_run
 from src.validators import validate_no_future_leakage
 
+pytestmark = pytest.mark.scenario
+
 
 def _entry_signal(price: pd.Series) -> pd.Series:
     fast_ma = vbt.MA.run(price, 5)

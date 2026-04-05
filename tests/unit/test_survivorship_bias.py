@@ -7,6 +7,8 @@ import pytest
 
 from src.validators import audit_survivorship_bias, detect_data_gaps
 
+pytestmark = pytest.mark.unit
+
 
 def test_detect_data_gaps_finds_missing_interval() -> None:
     """A missing timestamp interval should be reported as a gap."""

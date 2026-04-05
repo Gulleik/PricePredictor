@@ -2,8 +2,11 @@
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from src.strategies.sma_crossover import run
+
+pytestmark = pytest.mark.scenario
 
 
 class TestFrictionModel:

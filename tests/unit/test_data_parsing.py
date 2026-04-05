@@ -12,6 +12,8 @@ from src.data import (
     load_crypto_bars,
 )
 
+pytestmark = pytest.mark.unit
+
 
 def test_parse_datetime_returns_input_datetime() -> None:
     """A datetime input should be returned unchanged."""

@@ -21,6 +21,24 @@ These instructions apply to all agent work in this repository.
   - `src/data.py`: Alpaca historical data loading.
   - `src/strategies/`: strategy implementations.
 
+## Test Hierarchy
+
+Use a tiered pytest structure and keep new tests in the correct tier:
+
+- `tests/unit/` with marker `@pytest.mark.unit`:
+  - Pure logic, parsing, validators, and cache behavior with mocks.
+- `tests/scenario/` with marker `@pytest.mark.scenario`:
+  - Strategy behavior tests on synthetic data (for example lookahead, friction, execution semantics).
+- `tests/integration/` with marker `@pytest.mark.integration`:
+  - Entry-script orchestration tests with mocked dependencies.
+
+Preferred commands:
+
+- `pytest -m unit`
+- `pytest -m scenario`
+- `pytest -m integration`
+- `pytest` for full suite
+
 ## Non-Negotiable Runtime Rule
 
 Do not rely on runtime parameters when running scripts.

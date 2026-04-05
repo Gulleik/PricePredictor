@@ -9,3 +9,8 @@ select = ["E", "F", "I", "W"]
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q"
+markers = [
+    "unit: fast isolated tests for pure logic, parsing, and validators",
+    "scenario: strategy behavior tests using synthetic market data",
+    "integration: script orchestration tests with mocked dependencies",
+]

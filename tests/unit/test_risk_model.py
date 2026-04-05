@@ -6,6 +6,8 @@ import pytest
 
 from src.models.risk import compute_kelly_fraction, generate_position_sizes
 
+pytestmark = pytest.mark.unit
+
 
 class TestComputeKellyFraction:
     """Test Kelly Criterion formula computation."""

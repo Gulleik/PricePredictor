@@ -1,9 +1,12 @@
 """Tests for next-bar execution logic and lookahead bias prevention."""
 
 import pandas as pd
+import pytest
 import vectorbt as vbt
 
 from src.strategies.sma_crossover import run
+
+pytestmark = pytest.mark.scenario
 
 
 class TestNextBarExecution:
