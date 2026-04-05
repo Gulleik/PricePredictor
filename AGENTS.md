@@ -18,7 +18,9 @@ These instructions apply to all agent work in this repository.
   - `alpaca_stream.py`: live stream demo.
 - Core modules:
   - `src/config.py`: central configuration values.
-  - `src/data.py`: Alpaca historical data loading.
+  - `src/data.py`: Alpaca historical data loading and shared close-price extraction helper.
+  - `src/models/broker.py`: centralized broker friction and volume-cap logic.
+  - `src/models/risk.py`: Kelly sizing and position-size generation utilities.
   - `src/strategies/`: strategy implementations.
 
 ## Test Hierarchy
@@ -90,6 +92,8 @@ Error handling and safety:
 - Put reusable business logic in `src/` modules.
 - Add new strategy code under `src/strategies/`.
 - Keep data acquisition concerns inside data modules.
+- Keep broker cost/constraint logic centralized in `src/models/broker.py`.
+- Keep execution semantics explicit: use `ENABLE_NEXT_BAR_EXECUTION` independently from friction toggles.
 - Preserve backward-compatible behavior unless the task explicitly requires change.
 
 ## Change Workflow
@@ -107,6 +111,8 @@ For strategy or backtest changes:
 - Verify scripts still run without runtime params.
 - Verify config is the single source of operational values.
 - Verify output remains understandable for iterative research.
+- Verify integration tests for entry-script orchestration still pass.
+- Verify scenario tests for lookahead, friction, and next-bar behavior still pass.
 
 ## Preferred Task Patterns
 
