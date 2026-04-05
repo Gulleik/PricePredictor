@@ -31,6 +31,22 @@ FAST_WINDOWS = [5, 10, 15, 20, 25]
 SLOW_WINDOWS = [30, 40, 50, 60]
 HYPERPARAM_TOP_N = 5
 
+# Milestone 4: validation and sensitivity defaults
+WFO_ENABLED = True
+WFO_MODE: Literal["auto", "preset", "manual"] = "auto"
+WFO_PRESET: Literal["quick", "balanced", "robust"] = "balanced"
+WFO_IS_WINDOW_BARS = 252
+WFO_OOS_FRACTION = 0.25
+WFO_STEP_BARS = 63
+WFO_OOS_METRIC: Literal["sharpe_ratio", "total_return"] = "sharpe_ratio"
+
+REGIME_LOOKBACK_FAST = 50
+REGIME_LOOKBACK_SLOW = 200
+REGIME_SIDEWAYS_BAND = 0.01
+
+SENSITIVITY_HEATMAP_OUTPUT_PATH = Path("data/sensitivity_heatmap.png")
+SENSITIVITY_MATRIX_OUTPUT_PATH = Path("data/sensitivity_matrix.csv")
+
 # Data cache settings
 CACHE_ENABLED = True
 CACHE_DIR = Path("data")
