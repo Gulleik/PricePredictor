@@ -79,7 +79,7 @@ What it does:
 - Loads BTC/USD bars from Alpaca
 - Runs SMA crossover strategy with `fast=10`, `slow=30`
 - Prints baseline and Kelly-sized portfolio stats
-- Opens an interactive chart with price, moving averages, and positions
+- Optionally opens an interactive chart with price, moving averages, and positions if enabled in `src/config.py` (`BACKTEST_RENDER_CHART` is `False` by default)
 
 ### 2) Run Hyperparameter Search
 

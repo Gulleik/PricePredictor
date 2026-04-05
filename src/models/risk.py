@@ -74,7 +74,7 @@ def generate_position_sizes(
     Produces a Series where:
         - Entry bars have position size = kelly_fraction * init_cash / entry_price
         - Non-entry bars have NaN (VectorBT interprets as "hold position")
-        - Position size is clipped to not exceed init_cash (no leverage)
+        - Notional per entry is bounded by init_cash (no leverage)
 
     Args:
         entries: Boolean Series indicating entry signals (True = entry, False = hold).
@@ -107,8 +107,6 @@ def generate_position_sizes(
     if entry_mask.any():
         entry_prices = price[entry_mask]
         kelly_position = (kelly_fraction * init_cash) / entry_prices
-        # Ensure no leverage: cap at init_cash
-        kelly_position = kelly_position.clip(upper=init_cash)
         position_sizes[entry_mask] = kelly_position
 
     return position_sizes

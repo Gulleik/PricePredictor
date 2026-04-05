@@ -129,7 +129,7 @@ class TestGeneratePositionSizes:
         assert sizes.iloc[0] == expected_size, f"Size should be {expected_size}"
 
     def test_position_sizing_no_leverage(self) -> None:
-        """Test that position size never exceeds init_cash."""
+        """Test that position notional never exceeds init_cash."""
         price = pd.Series([1.0, 1.0])  # Very cheap price
         entries = pd.Series([True, False])
         kelly_frac = 1.0  # Full Kelly
@@ -142,8 +142,24 @@ class TestGeneratePositionSizes:
             init_cash=init_cash,
         )
 
-        # Position size would be 1.0 * 10000 / 1.0 = 10000 (all capital)
-        assert sizes.iloc[0] <= init_cash, "Position size should not exceed init_cash"
+        notional = sizes.iloc[0] * price.iloc[0]
+        assert notional <= init_cash, "Entry notional should not exceed init_cash"
+
+    def test_position_sizing_low_price_asset_units(self) -> None:
+        """Low-priced assets should allow higher unit counts at same notional."""
+        price = pd.Series([0.5, 0.5])
+        entries = pd.Series([True, False])
+
+        sizes = generate_position_sizes(
+            entries=entries,
+            price=price,
+            kelly_fraction=1.0,
+            init_cash=10000.0,
+        )
+
+        # Full Kelly at $0.5 allows 20,000 units while staying at $10,000 notional.
+        assert sizes.iloc[0] == 20000.0
+        assert sizes.iloc[0] * price.iloc[0] == 10000.0
 
     def test_position_sizing_all_entries(self) -> None:
         """Test sizing when all bars are entries."""

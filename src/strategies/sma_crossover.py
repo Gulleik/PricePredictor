@@ -117,8 +117,8 @@ def run_scan(
 
     # Apply next-bar execution if requested
     if next_bar_execution:
-        entries = entries.vbt.fshift(1)
-        exits = exits.vbt.fshift(1)
+        entries = entries.vbt.fshift(1).fillna(False).astype(bool)
+        exits = exits.vbt.fshift(1).fillna(False).astype(bool)
 
     broadcast_max_size = max_size
     if max_size is not None:

@@ -68,8 +68,8 @@ def test_main_uses_config_values_and_runs_flow(monkeypatch, capsys) -> None:
     # Create  MA mocks with methods needed for Kelly computation
     fast_ma = SimpleNamespace(
         ma=SimpleNamespace(vbt=_DummyPlotter(figure)),
-        ma_crossed_above=lambda x: pd.Series([False, False, False]),
-        ma_crossed_below=lambda x: pd.Series([False, False, False]),
+        ma_crossed_above=lambda x: pd.Series([True, False, True]),
+        ma_crossed_below=lambda x: pd.Series([False, True, False]),
     )
     slow_ma = SimpleNamespace(
         ma=SimpleNamespace(vbt=_DummyPlotter(figure)),
@@ -128,11 +128,19 @@ def test_main_uses_config_values_and_runs_flow(monkeypatch, capsys) -> None:
 
     monkeypatch.setattr(run_backtest, "load_crypto_bars", fake_load_crypto_bars)
     monkeypatch.setattr(run_backtest, "sma_run", fake_sma_run)
+
     # Mock Kelly functions to avoid issues with dummy data
+    def fake_estimate_conservative_kelly(entries, exits, price_arg):
+        assert price_arg is price
+        # Next-bar execution should shift raw signals by one bar.
+        assert entries.tolist() == [False, True, False]
+        assert exits.tolist() == [False, False, True]
+        return 0.0
+
     monkeypatch.setattr(
         run_backtest,
         "estimate_conservative_kelly",
-        lambda e, ex, p: 0.0,
+        fake_estimate_conservative_kelly,
     )
     monkeypatch.setattr(
         run_backtest,

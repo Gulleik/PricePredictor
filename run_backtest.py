@@ -68,9 +68,13 @@ def main() -> None:
         max_size=max_size_array,
     )
 
-    # Compute Kelly sizing from baseline signals
+    # Compute Kelly sizing from signals aligned to actual execution timing.
     entries = fast_ma.ma_crossed_above(slow_ma)
     exits = fast_ma.ma_crossed_below(slow_ma)
+    if ENABLE_NEXT_BAR_EXECUTION:
+        entries = entries.astype(bool).shift(1, fill_value=False)
+        exits = exits.astype(bool).shift(1, fill_value=False)
+
     kelly_raw = estimate_conservative_kelly(entries, exits, price)
     kelly_scaled = kelly_raw * KELLY_FACTOR
 
