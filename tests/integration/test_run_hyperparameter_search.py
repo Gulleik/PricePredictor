@@ -52,8 +52,17 @@ def test_main_uses_config_values(monkeypatch, capsys) -> None:
         assert timeframe == run_hyperparameter_search.DEFAULT_TIMEFRAME
         return "price-series"
 
-    def fake_run_scan(price, fast_windows, slow_windows, init_cash, next_bar_execution=False,
-                      fees=0, fixed_fees=0, slippage=0, max_size=None):
+    def fake_run_scan(
+        price,
+        fast_windows,
+        slow_windows,
+        init_cash,
+        next_bar_execution=False,
+        fees=0,
+        fixed_fees=0,
+        slippage=0,
+        max_size=None,
+    ):
         assert price == "price-series"
         assert fast_windows == run_hyperparameter_search.FAST_WINDOWS
         assert slow_windows == run_hyperparameter_search.SLOW_WINDOWS

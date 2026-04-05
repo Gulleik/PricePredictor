@@ -2,8 +2,6 @@
 
 import time
 
-import vectorbt as vbt
-
 from src.config import (
     BACKTEST_FAST_WINDOW,
     BACKTEST_RENDER_CHART,
@@ -14,8 +12,8 @@ from src.config import (
     BROKER_SLIPPAGE_PCT,
     DEFAULT_INIT_CASH,
     DEFAULT_TIMEFRAME,
-    ENABLE_NEXT_BAR_EXECUTION,
     ENABLE_FRICTION_MODEL,
+    ENABLE_NEXT_BAR_EXECUTION,
     KELLY_FACTOR,
     MAX_VOLUME_PARTICIPATION,
 )
@@ -50,8 +48,13 @@ def main() -> None:
         slippage_pct=BROKER_SLIPPAGE_PCT,
         max_volume_participation=MAX_VOLUME_PARTICIPATION,
     )
-    max_size_array = broker.compute_max_size_array(market_data, enable=ENABLE_FRICTION_MODEL)
-    friction_kwargs = broker.build_friction_kwargs(enable_friction=ENABLE_FRICTION_MODEL)
+    max_size_array = broker.compute_max_size_array(
+        market_data,
+        enable=ENABLE_FRICTION_MODEL,
+    )
+    friction_kwargs = broker.build_friction_kwargs(
+        enable_friction=ENABLE_FRICTION_MODEL
+    )
 
     print("[2/4] Running SMA crossover backtest...")
     t1 = time.perf_counter()
@@ -64,15 +67,20 @@ def main() -> None:
         **friction_kwargs,
         max_size=max_size_array,
     )
-    
+
     # Compute Kelly sizing from baseline signals
     entries = fast_ma.ma_crossed_above(slow_ma)
     exits = fast_ma.ma_crossed_below(slow_ma)
     kelly_raw = estimate_conservative_kelly(entries, exits, price)
     kelly_scaled = kelly_raw * KELLY_FACTOR
-    
+
     if kelly_scaled > 0:
-        position_sizes = generate_position_sizes(entries, price, kelly_scaled, DEFAULT_INIT_CASH)
+        position_sizes = generate_position_sizes(
+            entries,
+            price,
+            kelly_scaled,
+            DEFAULT_INIT_CASH,
+        )
         pf_kelly, _, _ = sma_run(
             price,
             fast=BACKTEST_FAST_WINDOW,
@@ -85,17 +93,21 @@ def main() -> None:
         )
     else:
         pf_kelly = None
-    
-    print(f"[2/4] Done in {time.perf_counter() - t1:.2f}s (Kelly raw={kelly_raw:.4f}, scaled={kelly_scaled:.4f})")
+
+    print(
+        "[2/4] Done in "
+        f"{time.perf_counter() - t1:.2f}s "
+        f"(Kelly raw={kelly_raw:.4f}, scaled={kelly_scaled:.4f})"
+    )
 
     print("[3/4] Printing portfolio stats...")
     print("\n=== Baseline (Fixed Position Size) ===")
     print(pf.stats())
-    
+
     if pf_kelly is not None:
         print("\n=== Kelly Criterion Sizing ===")
         print(pf_kelly.stats())
-        print(f"\nKelly Sizing Summary:")
+        print("\nKelly Sizing Summary:")
         print(f"  Raw Kelly Fraction: {kelly_raw:.4f}")
         print(f"  Scaled (factor={KELLY_FACTOR}): {kelly_scaled:.4f}")
     print()
@@ -104,7 +116,7 @@ def main() -> None:
         print("[4/4] Rendering chart...")
         # Use Kelly-sized portfolio if available, otherwise baseline
         pf_to_plot = pf_kelly if pf_kelly is not None else pf
-        
+
         # Plot: price, MAs, position markers
         fig = price.vbt.plot(trace_kwargs=dict(name="Close"))
         fast_ma.ma.vbt.plot(trace_kwargs=dict(name="Fast MA"), fig=fig)

@@ -6,8 +6,8 @@ from src.config import (
     BROKER_SLIPPAGE_PCT,
     DEFAULT_INIT_CASH,
     DEFAULT_TIMEFRAME,
-    ENABLE_NEXT_BAR_EXECUTION,
     ENABLE_FRICTION_MODEL,
+    ENABLE_NEXT_BAR_EXECUTION,
     FAST_WINDOWS,
     HYPERPARAM_SYMBOL,
     HYPERPARAM_TOP_N,
@@ -19,7 +19,6 @@ from src.data import get_close_price_series, load_crypto_bars
 from src.date_range import get_default_date_range
 from src.models.broker import BrokerModel
 from src.strategies.sma_crossover import run_scan
-
 
 OBJECTIVE_ACCESSORS = {
     "sharpe_ratio": "sharpe_ratio",
@@ -45,8 +44,13 @@ def main() -> None:
         slippage_pct=BROKER_SLIPPAGE_PCT,
         max_volume_participation=MAX_VOLUME_PARTICIPATION,
     )
-    max_size_array = broker.compute_max_size_array(market_data, enable=ENABLE_FRICTION_MODEL)
-    friction_kwargs = broker.build_friction_kwargs(enable_friction=ENABLE_FRICTION_MODEL)
+    max_size_array = broker.compute_max_size_array(
+        market_data,
+        enable=ENABLE_FRICTION_MODEL,
+    )
+    friction_kwargs = broker.build_friction_kwargs(
+        enable_friction=ENABLE_FRICTION_MODEL
+    )
 
     pf = run_scan(
         price,
