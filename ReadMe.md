@@ -40,6 +40,14 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+4. Enable repository git hooks.
+
+```powershell
+git config core.hooksPath .githooks
+```
+
+The repository includes a `pre-push` hook that runs the full test suite before push.
+
 ## Environment Variables
 
 Create a `.env` file in the repository root:
