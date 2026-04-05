@@ -51,22 +51,34 @@ def _get_cache_path(
     return cache_dir / _cache_filename(symbol, start_dt, end_dt, timeframe)
 
 
-def _load_from_cache(cache_path: Path) -> Union[pd.Series, None]:
-    """Load a close-price series from local cache if available."""
+def _load_from_cache(cache_path: Path) -> Union[pd.DataFrame, None]:
+    """Load OHLCV bars from local cache if available."""
     if not CACHE_ENABLED or not cache_path.exists():
         return None
 
     cached_df = pd.read_parquet(cache_path)
-    if "close" not in cached_df.columns:
-        raise ValueError(f"Cache file is missing required 'close' column: {cache_path}")
-    return cached_df["close"].sort_index()
+    required_cols = {"open", "high", "low", "close", "volume"}
+    if not required_cols.issubset(cached_df.columns):
+        # Backward compatibility: older cache files may store close-only data.
+        # Treat these files as cache misses so we can refresh to OHLCV format.
+        if set(cached_df.columns) == {"close"}:
+            print(
+                f"Legacy cache format detected at {cache_path}; "
+                "refreshing cache with OHLCV data."
+            )
+            return None
+        raise ValueError(
+            f"Cache file is missing required OHLCV columns. "
+            f"Expected {required_cols}, got {set(cached_df.columns)}: {cache_path}"
+        )
+    return cached_df.sort_index()
 
 
-def _save_to_cache(cache_path: Path, price: pd.Series) -> None:
-    """Persist close-price series as parquet for fast repeat access."""
+def _save_to_cache(cache_path: Path, ohlcv: pd.DataFrame) -> None:
+    """Persist OHLCV bars as parquet for fast repeat access."""
     if not CACHE_ENABLED:
         return
-    price.sort_index().to_frame(name="close").to_parquet(cache_path)
+    ohlcv.sort_index().to_parquet(cache_path)
 
 
 def _parse_timeframe(timeframe: str) -> TimeFrame:
@@ -129,13 +141,20 @@ def _run_data_integrity_checks(
         validate_utc_index(price, field_name=f"{symbol} {source_label} price")
 
 
+def get_close_price_series(market_data: pd.DataFrame | pd.Series) -> pd.Series:
+    """Return close price series from OHLCV data or pass through price series."""
+    if hasattr(market_data, "columns") and "close" in market_data.columns:
+        return market_data["close"]
+    return market_data
+
+
 def load_crypto_bars(
     symbol: str,
     start: str,
     end: str,
     *,
     timeframe: str = "1d",
-) -> pd.Series:
+) -> pd.DataFrame:
     """
     Load historical crypto OHLCV bars from Alpaca.
 
@@ -146,17 +165,17 @@ def load_crypto_bars(
         timeframe: Bar interval (e.g. "1d", "1h", "15m").
 
     Returns:
-        Price series (Close) as pandas Series for use with VectorBT.
+        OHLCV DataFrame with columns: open, high, low, close, volume.
     """
     start_dt = _parse_datetime(start)
     end_dt = _parse_datetime(end)
     tf = _parse_timeframe(timeframe)
     cache_path = _get_cache_path(symbol, start_dt, end_dt, tf)
 
-    cached_price = _load_from_cache(cache_path)
-    if cached_price is not None:
+    cached_ohlcv = _load_from_cache(cache_path)
+    if cached_ohlcv is not None:
         _run_data_integrity_checks(
-            cached_price,
+            cached_ohlcv["close"],
             symbol=symbol,
             source_label="cached",
             requested_start=start_dt,
@@ -164,7 +183,7 @@ def load_crypto_bars(
             timeframe=timeframe,
         )
         print(f"Using cache: {cache_path}")
-        return cached_price
+        return cached_ohlcv
 
     if CACHE_ENABLED:
         print(f"Cache miss: fetching data from Alpaca for {symbol}")
@@ -192,10 +211,12 @@ def load_crypto_bars(
     df = bars.df
     if isinstance(df.index, pd.MultiIndex) and "symbol" in df.index.names:
         df = df.loc[symbol]
-    price = df["close"].sort_index()
+
+    # Preserve full OHLCV; ensure required columns exist
+    ohlcv = df[["open", "high", "low", "close", "volume"]].sort_index()
 
     _run_data_integrity_checks(
-        price,
+        ohlcv["close"],
         symbol=symbol,
         source_label="API",
         requested_start=start_dt,
@@ -203,5 +224,5 @@ def load_crypto_bars(
         timeframe=timeframe,
     )
 
-    _save_to_cache(cache_path, price)
-    return price
+    _save_to_cache(cache_path, ohlcv)
+    return ohlcv

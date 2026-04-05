@@ -1,27 +1,55 @@
 """Run hyperparameter search for SMA crossover and report best parameters."""
 
 from src.config import (
+    BROKER_COMMISSION_PCT,
+    BROKER_FIXED_FEE,
+    BROKER_SLIPPAGE_PCT,
     DEFAULT_INIT_CASH,
     DEFAULT_TIMEFRAME,
+    ENABLE_FRICTION_MODEL,
+    ENABLE_NEXT_BAR_EXECUTION,
     FAST_WINDOWS,
     HYPERPARAM_SYMBOL,
     HYPERPARAM_TOP_N,
+    MAX_VOLUME_PARTICIPATION,
     SCAN_OBJECTIVE,
     SLOW_WINDOWS,
 )
-from src.data import load_crypto_bars
+from src.data import get_close_price_series, load_crypto_bars
 from src.date_range import get_default_date_range
+from src.models.broker import BrokerModel
 from src.strategies.sma_crossover import run_scan
+
+OBJECTIVE_ACCESSORS = {
+    "sharpe_ratio": "sharpe_ratio",
+    "total_return": "total_return",
+}
 
 
 def main() -> None:
     symbol = HYPERPARAM_SYMBOL
     start, end = get_default_date_range()
-    price = load_crypto_bars(
+    market_data = load_crypto_bars(
         symbol,
         start=start,
         end=end,
         timeframe=DEFAULT_TIMEFRAME,
+    )
+    price = get_close_price_series(market_data)
+
+    # Initialize broker model for friction and volume constraints
+    broker = BrokerModel(
+        commission_pct=BROKER_COMMISSION_PCT,
+        fixed_fee=BROKER_FIXED_FEE,
+        slippage_pct=BROKER_SLIPPAGE_PCT,
+        max_volume_participation=MAX_VOLUME_PARTICIPATION,
+    )
+    max_size_array = broker.compute_max_size_array(
+        market_data,
+        enable=ENABLE_FRICTION_MODEL,
+    )
+    friction_kwargs = broker.build_friction_kwargs(
+        enable_friction=ENABLE_FRICTION_MODEL
     )
 
     pf = run_scan(
@@ -29,17 +57,18 @@ def main() -> None:
         fast_windows=FAST_WINDOWS,
         slow_windows=SLOW_WINDOWS,
         init_cash=DEFAULT_INIT_CASH,
+        next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
+        **friction_kwargs,
+        max_size=max_size_array,
     )
 
-    if SCAN_OBJECTIVE == "sharpe_ratio":
-        metric_series = pf.sharpe_ratio()
-    elif SCAN_OBJECTIVE == "total_return":
-        metric_series = pf.total_return()
-    else:
+    metric_method = OBJECTIVE_ACCESSORS.get(SCAN_OBJECTIVE)
+    if metric_method is None:
         raise ValueError(
             f"Unknown SCAN_OBJECTIVE: {SCAN_OBJECTIVE}. "
             "Use 'sharpe_ratio' or 'total_return'."
         )
+    metric_series = getattr(pf, metric_method)()
 
     best_col = metric_series.idxmax()
     best_fast, best_slow = best_col

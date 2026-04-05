@@ -6,6 +6,9 @@ It currently includes:
 - Historical data loading from Alpaca crypto bars
 - SMA crossover backtesting
 - Hyperparameter search across SMA windows
+- Optional execution fidelity toggle for next-bar execution
+- Optional friction model (commission, fixed fee, slippage, and volume caps)
+- Kelly-based position sizing comparison in backtest runs
 - A simple live stream example for trade prints
 
 ## Project Layout
@@ -19,6 +22,9 @@ It currently includes:
 `- src/
 	 |- config.py
 	 |- data.py
+	 |- models/
+	 |	|- broker.py
+	 |	`- risk.py
 	 `- strategies/
 			`- sma_crossover.py
 ```
@@ -39,6 +45,14 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
+
+4. Enable repository git hooks.
+
+```powershell
+git config core.hooksPath .githooks
+```
+
+The repository includes a `pre-push` hook that runs the full test suite before push.
 
 ## Environment Variables
 
@@ -64,8 +78,8 @@ python run_backtest.py
 What it does:
 - Loads BTC/USD bars from Alpaca
 - Runs SMA crossover strategy with `fast=10`, `slow=30`
-- Prints portfolio stats
-- Opens an interactive chart with price, moving averages, and positions
+- Prints baseline and Kelly-sized portfolio stats
+- Optionally opens an interactive chart with price, moving averages, and positions if enabled in `src/config.py` (`BACKTEST_RENDER_CHART` is `False` by default)
 
 ### 2) Run Hyperparameter Search
 
@@ -97,8 +111,19 @@ Default settings live in `src/config.py`:
 - Initial cash (`DEFAULT_INIT_CASH`)
 - Hyperparameter ranges (`FAST_WINDOWS`, `SLOW_WINDOWS`)
 - Scan objective (`SCAN_OBJECTIVE`)
+- Execution timing (`ENABLE_NEXT_BAR_EXECUTION`)
+- Friction model toggle (`ENABLE_FRICTION_MODEL`)
+- Broker friction params (`BROKER_COMMISSION_PCT`, `BROKER_FIXED_FEE`, `BROKER_SLIPPAGE_PCT`)
+- Volume cap (`MAX_VOLUME_PARTICIPATION`)
+- Kelly scaling (`KELLY_FACTOR`)
 
 Adjust these values to tune your experiments.
+
+## Execution and Risk Notes
+
+- Next-bar execution and friction are configured independently.
+- Broker friction and max-volume participation are centralized in `src/models/broker.py`.
+- Backtest script computes a conservative Kelly estimate from baseline signals and runs a comparison portfolio.
 
 ## Strategy Notes
 

@@ -2,7 +2,11 @@
 
 from types import SimpleNamespace
 
+import pytest
+
 import run_backtest
+
+pytestmark = pytest.mark.integration
 
 
 class _DummyFigure:
@@ -55,17 +59,32 @@ class _NoPlotPrice:
 
 def test_main_uses_config_values_and_runs_flow(monkeypatch, capsys) -> None:
     """main should use module config constants and complete orchestration flow."""
+    import pandas as pd
+
     figure = _DummyFigure()
     price = _DummyPrice(figure)
     pf = _DummyPortfolio()
-    fast_ma = SimpleNamespace(ma=SimpleNamespace(vbt=_DummyPlotter(figure)))
-    slow_ma = SimpleNamespace(ma=SimpleNamespace(vbt=_DummyPlotter(figure)))
+
+    # Create  MA mocks with methods needed for Kelly computation
+    fast_ma = SimpleNamespace(
+        ma=SimpleNamespace(vbt=_DummyPlotter(figure)),
+        ma_crossed_above=lambda x: pd.Series([True, False, True]),
+        ma_crossed_below=lambda x: pd.Series([False, True, False]),
+    )
+    slow_ma = SimpleNamespace(
+        ma=SimpleNamespace(vbt=_DummyPlotter(figure)),
+        ma_crossed_above=lambda x: pd.Series([False, False, False]),
+        ma_crossed_below=lambda x: pd.Series([False, False, False]),
+    )
 
     monkeypatch.setattr(run_backtest, "BACKTEST_SYMBOL", "LTC/USD")
     monkeypatch.setattr(run_backtest, "BACKTEST_FAST_WINDOW", 7)
     monkeypatch.setattr(run_backtest, "BACKTEST_SLOW_WINDOW", 21)
     monkeypatch.setattr(run_backtest, "BACKTEST_RENDER_CHART", True)
     monkeypatch.setattr(run_backtest, "DEFAULT_INIT_CASH", 1234.0)
+    monkeypatch.setattr(run_backtest, "ENABLE_NEXT_BAR_EXECUTION", True)
+    monkeypatch.setattr(run_backtest, "ENABLE_FRICTION_MODEL", True)
+    monkeypatch.setattr(run_backtest, "KELLY_FACTOR", 0.25)
     monkeypatch.setattr(
         run_backtest,
         "get_default_date_range",
@@ -79,15 +98,55 @@ def test_main_uses_config_values_and_runs_flow(monkeypatch, capsys) -> None:
         assert timeframe == run_backtest.DEFAULT_TIMEFRAME
         return price
 
-    def fake_sma_run(price_arg, fast, slow, init_cash):
+    def fake_sma_run(
+        price_arg,
+        fast,
+        slow,
+        init_cash,
+        next_bar_execution=False,
+        fees=0,
+        fixed_fees=0,
+        slippage=0,
+        max_size=None,
+        position_sizes=None,
+    ):
         assert price_arg is price
         assert fast == run_backtest.BACKTEST_FAST_WINDOW
         assert slow == run_backtest.BACKTEST_SLOW_WINDOW
         assert init_cash == run_backtest.DEFAULT_INIT_CASH
+        assert next_bar_execution == run_backtest.ENABLE_NEXT_BAR_EXECUTION
+        # Friction parameters are now centralized in broker model
+        if run_backtest.ENABLE_FRICTION_MODEL:
+            assert fees > 0, "When friction enabled, fees should be > 0"
+            assert fixed_fees > 0, "When friction enabled, fixed_fees should be > 0"
+            assert slippage > 0, "When friction enabled, slippage should be > 0"
+        else:
+            assert fees == 0
+            assert fixed_fees == 0
+            assert slippage == 0
         return pf, fast_ma, slow_ma
 
     monkeypatch.setattr(run_backtest, "load_crypto_bars", fake_load_crypto_bars)
     monkeypatch.setattr(run_backtest, "sma_run", fake_sma_run)
+
+    # Mock Kelly functions to avoid issues with dummy data
+    def fake_estimate_conservative_kelly(entries, exits, price_arg):
+        assert price_arg is price
+        # Next-bar execution should shift raw signals by one bar.
+        assert entries.tolist() == [False, True, False]
+        assert exits.tolist() == [False, False, True]
+        return 0.0
+
+    monkeypatch.setattr(
+        run_backtest,
+        "estimate_conservative_kelly",
+        fake_estimate_conservative_kelly,
+    )
+    monkeypatch.setattr(
+        run_backtest,
+        "generate_position_sizes",
+        lambda e, p, k, c: None,
+    )
 
     run_backtest.main()
 
@@ -101,14 +160,31 @@ def test_main_uses_config_values_and_runs_flow(monkeypatch, capsys) -> None:
 
 def test_main_skips_chart_when_disabled(monkeypatch, capsys) -> None:
     """main should skip plotting when chart rendering is disabled in config."""
+    import pandas as pd
+
     price = _NoPlotPrice()
     pf = _DummyPortfolio()
+
+    # Mock MA objects with methods for Kelly computation
+    fast_ma = SimpleNamespace(
+        ma=SimpleNamespace(vbt=object()),
+        ma_crossed_above=lambda x: pd.Series([False, False, False]),
+        ma_crossed_below=lambda x: pd.Series([False, False, False]),
+    )
+    slow_ma = SimpleNamespace(
+        ma=SimpleNamespace(vbt=object()),
+        ma_crossed_above=lambda x: pd.Series([False, False, False]),
+        ma_crossed_below=lambda x: pd.Series([False, False, False]),
+    )
 
     monkeypatch.setattr(run_backtest, "BACKTEST_SYMBOL", "LTC/USD")
     monkeypatch.setattr(run_backtest, "BACKTEST_FAST_WINDOW", 7)
     monkeypatch.setattr(run_backtest, "BACKTEST_SLOW_WINDOW", 21)
     monkeypatch.setattr(run_backtest, "BACKTEST_RENDER_CHART", False)
     monkeypatch.setattr(run_backtest, "DEFAULT_INIT_CASH", 1234.0)
+    monkeypatch.setattr(run_backtest, "ENABLE_NEXT_BAR_EXECUTION", True)
+    monkeypatch.setattr(run_backtest, "ENABLE_FRICTION_MODEL", False)
+    monkeypatch.setattr(run_backtest, "KELLY_FACTOR", 0.25)
     monkeypatch.setattr(
         run_backtest,
         "get_default_date_range",
@@ -123,7 +199,18 @@ def test_main_skips_chart_when_disabled(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
         run_backtest,
         "sma_run",
-        lambda *args, **kwargs: (pf, object(), object()),
+        lambda *args, **kwargs: (pf, fast_ma, slow_ma),
+    )
+    # Mock Kelly functions
+    monkeypatch.setattr(
+        run_backtest,
+        "estimate_conservative_kelly",
+        lambda e, ex, p: 0.0,
+    )
+    monkeypatch.setattr(
+        run_backtest,
+        "generate_position_sizes",
+        lambda e, p, k, c: None,
     )
 
     run_backtest.main()

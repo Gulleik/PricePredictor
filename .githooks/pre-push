@@ -1,0 +1,20 @@
+#!/usr/bin/env sh
+set -eu
+
+# Run the full test suite before allowing a push.
+if [ -x ".venv/Scripts/python.exe" ]; then
+  PYTHON_BIN=".venv/Scripts/python.exe"
+elif [ -x ".venv/bin/python" ]; then
+  PYTHON_BIN=".venv/bin/python"
+else
+  PYTHON_BIN="python"
+fi
+
+echo "Running lint checks (ruff) before push..."
+"$PYTHON_BIN" -m ruff check .
+
+echo "Running format checks (ruff) before push..."
+"$PYTHON_BIN" -m ruff format --check .
+
+echo "Running test suite (pytest) before push..."
+"$PYTHON_BIN" -m pytest

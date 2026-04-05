@@ -6,6 +6,11 @@ target-version = "py311"
 select = ["E", "F", "I", "W"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests/unit", "tests/scenario", "tests/integration"]
 pythonpath = ["."]
 addopts = "-q"
+markers = [
+    "unit: fast isolated tests for pure logic, parsing, and validators",
+    "scenario: strategy behavior tests using synthetic market data",
+    "integration: script orchestration tests with mocked dependencies",
+]
