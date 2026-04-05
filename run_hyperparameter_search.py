@@ -1,22 +1,21 @@
 """Run hyperparameter search for SMA crossover and report best parameters."""
 
 from src.config import (
-    BROKER_COMMISSION_PCT,
-    BROKER_FIXED_FEE,
-    BROKER_SLIPPAGE_PCT,
     DEFAULT_INIT_CASH,
     DEFAULT_TIMEFRAME,
+    ENABLE_NEXT_BAR_EXECUTION,
     ENABLE_FRICTION_MODEL,
     FAST_WINDOWS,
     HYPERPARAM_SYMBOL,
     HYPERPARAM_TOP_N,
-    MAX_VOLUME_PARTICIPATION,
     SCAN_OBJECTIVE,
     SLOW_WINDOWS,
 )
 from src.data import load_crypto_bars
 from src.date_range import get_default_date_range
+from src.models.broker import build_broker_model_from_config
 from src.strategies.sma_crossover import run_scan
+import src.config
 
 
 def main() -> None:
@@ -34,36 +33,20 @@ def main() -> None:
         else market_data
     )
 
-    # Compute max position sizes based on volume constraints
-    max_size_array = None
-    if (
-        ENABLE_FRICTION_MODEL
-        and hasattr(market_data, "columns")
-        and "volume" in market_data.columns
-    ):
-        # Alpaca crypto bar volume is already in base asset units.
-        max_size_array = (MAX_VOLUME_PARTICIPATION * market_data["volume"]).values
+    # Initialize broker model for friction and volume constraints
+    broker = build_broker_model_from_config(src.config)
+    max_size_array = broker.compute_max_size_array(market_data, enable=ENABLE_FRICTION_MODEL)
+    friction_kwargs = broker.build_friction_kwargs(enable_friction=ENABLE_FRICTION_MODEL)
 
-    try:
-        pf = run_scan(
-            price,
-            fast_windows=FAST_WINDOWS,
-            slow_windows=SLOW_WINDOWS,
-            init_cash=DEFAULT_INIT_CASH,
-            next_bar_execution=ENABLE_FRICTION_MODEL,
-            fees=BROKER_COMMISSION_PCT if ENABLE_FRICTION_MODEL else 0,
-            fixed_fees=BROKER_FIXED_FEE if ENABLE_FRICTION_MODEL else 0,
-            slippage=BROKER_SLIPPAGE_PCT if ENABLE_FRICTION_MODEL else 0,
-            max_size=max_size_array,
-        )
-    except TypeError:
-        # Backward compatibility with legacy test doubles that use old signature.
-        pf = run_scan(
-            price,
-            fast_windows=FAST_WINDOWS,
-            slow_windows=SLOW_WINDOWS,
-            init_cash=DEFAULT_INIT_CASH,
-        )
+    pf = run_scan(
+        price,
+        fast_windows=FAST_WINDOWS,
+        slow_windows=SLOW_WINDOWS,
+        init_cash=DEFAULT_INIT_CASH,
+        next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
+        **friction_kwargs,
+        max_size=max_size_array,
+    )
 
     if SCAN_OBJECTIVE == "sharpe_ratio":
         metric_series = pf.sharpe_ratio()

@@ -37,6 +37,8 @@ def test_main_uses_config_values(monkeypatch, capsys) -> None:
     monkeypatch.setattr(run_hyperparameter_search, "HYPERPARAM_SYMBOL", "ETH/USD")
     monkeypatch.setattr(run_hyperparameter_search, "HYPERPARAM_TOP_N", 2)
     monkeypatch.setattr(run_hyperparameter_search, "SCAN_OBJECTIVE", "sharpe_ratio")
+    monkeypatch.setattr(run_hyperparameter_search, "ENABLE_NEXT_BAR_EXECUTION", True)
+    monkeypatch.setattr(run_hyperparameter_search, "ENABLE_FRICTION_MODEL", True)
     monkeypatch.setattr(
         run_hyperparameter_search,
         "get_default_date_range",
@@ -50,11 +52,22 @@ def test_main_uses_config_values(monkeypatch, capsys) -> None:
         assert timeframe == run_hyperparameter_search.DEFAULT_TIMEFRAME
         return "price-series"
 
-    def fake_run_scan(price, fast_windows, slow_windows, init_cash):
+    def fake_run_scan(price, fast_windows, slow_windows, init_cash, next_bar_execution=False,
+                      fees=0, fixed_fees=0, slippage=0, max_size=None):
         assert price == "price-series"
         assert fast_windows == run_hyperparameter_search.FAST_WINDOWS
         assert slow_windows == run_hyperparameter_search.SLOW_WINDOWS
         assert init_cash == run_hyperparameter_search.DEFAULT_INIT_CASH
+        assert next_bar_execution == run_hyperparameter_search.ENABLE_NEXT_BAR_EXECUTION
+        # Friction parameters are now centralized in broker model
+        if run_hyperparameter_search.ENABLE_FRICTION_MODEL:
+            assert fees > 0, "When friction enabled, fees should be > 0"
+            assert fixed_fees > 0, "When friction enabled, fixed_fees should be > 0"
+            assert slippage > 0, "When friction enabled, slippage should be > 0"
+        else:
+            assert fees == 0
+            assert fixed_fees == 0
+            assert slippage == 0
         return pf
 
     monkeypatch.setattr(

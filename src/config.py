@@ -42,6 +42,7 @@ SURVIVORSHIP_MAX_GAP_FRACTION = 0.05
 SURVIVORSHIP_FAIL_FAST = False
 
 # Execution fidelity & risk settings (Milestone 3)
+ENABLE_NEXT_BAR_EXECUTION = True  # Shift signals to next bar (lookahead safety)
 ENABLE_FRICTION_MODEL = True  # Toggle friction costs on/off
 BROKER_COMMISSION_PCT = 0.001  # 0.1% per-trade commission
 BROKER_FIXED_FEE = 1.0  # $1 flat fee per trade
