@@ -15,7 +15,7 @@ DATE_REFRESH_CADENCE: Literal["month", "week", "day"] = "week"
 DEFAULT_LOOKBACK_DAYS = 365
 
 # Default timeframe for bars
-DEFAULT_TIMEFRAME = "1d"
+DEFAULT_TIMEFRAME = "1D"
 
 # Default initial capital for backtests
 DEFAULT_INIT_CASH = 10_000.0

@@ -5,3 +5,4 @@ dateparser
 pytest
 ruff
 pyarrow
+websockets<14

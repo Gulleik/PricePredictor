@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 import vectorbt as vbt
 
+from src.config import DEFAULT_TIMEFRAME
+
 
 def run(
     price: pd.Series,
@@ -20,6 +22,7 @@ def run(
     slippage: float = 0.0,
     max_size: Any | None = None,
     position_sizes: Any | None = None,
+    portfolio_freq: str | None = None,
 ) -> tuple[Any, Any, Any]:
     """
     Run SMA crossover backtest with optional execution fidelity modeling.
@@ -35,6 +38,7 @@ def run(
         slippage: Percentage slippage (e.g., 0.002 for 0.2%).
         max_size: Array of max position sizes per bar (for volume constraints).
         position_sizes: Array of position sizes per signal (for Kelly sizing).
+        portfolio_freq: Optional pandas-style frequency (e.g. "1D", "1H").
 
     Returns:
         Tuple of (portfolio, fast_ma, slow_ma) for plotting.
@@ -60,6 +64,8 @@ def run(
     if position_sizes is not None:
         portfolio_kwargs["size"] = position_sizes
 
+    portfolio_kwargs["freq"] = portfolio_freq or DEFAULT_TIMEFRAME
+
     pf = vbt.Portfolio.from_signals(
         price,
         entries,
@@ -79,6 +85,7 @@ def run_scan(
     fixed_fees: float = 0.0,
     slippage: float = 0.0,
     max_size: np.ndarray | None = None,
+    portfolio_freq: str | None = None,
 ) -> Any:
     """
     Run SMA crossover backtest across all valid (fast, slow) combinations
@@ -94,6 +101,7 @@ def run_scan(
         fixed_fees: Fixed fee per order.
         slippage: Percentage slippage.
         max_size: Array of max position sizes per bar.
+        portfolio_freq: Optional pandas-style frequency (e.g. "1D", "1H").
 
     Returns:
         Portfolio with one column per (fast, slow) parameter combination.
@@ -129,5 +137,6 @@ def run_scan(
         fixed_fees=fixed_fees,
         slippage=slippage,
         max_size=broadcast_max_size,
+        freq=portfolio_freq or DEFAULT_TIMEFRAME,
     )
     return pf
