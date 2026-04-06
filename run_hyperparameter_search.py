@@ -141,7 +141,11 @@ def _trial_metric_series(study: Any) -> pd.Series:
             continue
         if trial.user_attrs.get("invalid_combo", False):
             continue
-        values[(int(fast), int(slow))] = float(trial.value)
+        key = (int(fast), int(slow))
+        score = float(trial.value)
+        existing = values.get(key)
+        if existing is None or score > existing:
+            values[key] = score
     return pd.Series(values)
 
 

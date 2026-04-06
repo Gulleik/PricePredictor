@@ -94,6 +94,15 @@ def optimize_sma_parameters(
     if timeout_seconds < 0:
         raise ValueError("OPTUNA_TIMEOUT_SECONDS must be >= 0")
 
+    has_valid_pair = any(
+        fast < slow for fast in fast_windows for slow in slow_windows
+    )
+    if not has_valid_pair:
+        raise ValueError(
+            "No valid fast/slow combinations in search space. "
+            "Ensure FAST_WINDOWS contains values smaller than SLOW_WINDOWS."
+        )
+
     try:
         import optuna
     except ImportError as exc:  # pragma: no cover - guarded runtime dependency
@@ -154,7 +163,21 @@ def optimize_sma_parameters(
 
     study.optimize(_objective, n_trials=n_trials, timeout=timeout_seconds or None)
 
-    best_trial = study.best_trial
+    valid_trials = [
+        trial
+        for trial in study.trials
+        if not bool(trial.user_attrs.get("invalid_combo", False))
+        and trial.value is not None
+        and np.isfinite(float(trial.value))
+    ]
+    if not valid_trials:
+        raise ValueError(
+            "Optuna search produced no valid trials. "
+            "Increase OPTUNA_N_TRIALS or narrow FAST_WINDOWS/SLOW_WINDOWS "
+            "to reduce invalid fast>=slow samples."
+        )
+
+    best_trial = max(valid_trials, key=lambda trial: float(trial.value))
     best_metrics = {
         "sharpe_ratio": float(best_trial.user_attrs.get("sharpe_ratio", 0.0)),
         "sortino_ratio": float(best_trial.user_attrs.get("sortino_ratio", 0.0)),

@@ -118,3 +118,80 @@ def test_optuna_optimizer_returns_best_params(monkeypatch) -> None:
     assert result.best_slow == 30
     assert "sortino_ratio" in result.best_metrics
     assert "calmar_ratio" in result.best_metrics
+
+
+def test_optuna_optimizer_raises_for_invalid_search_space() -> None:
+    """Optimizer should fail fast when no fast<slow pairs are possible."""
+    idx = pd.date_range("2024-01-01", periods=10, freq="D", tz="UTC")
+    price = pd.Series(np.linspace(100, 110, num=len(idx)), index=idx)
+
+    with pytest.raises(ValueError, match="No valid fast/slow combinations"):
+        optuna_integration.optimize_sma_parameters(
+            price,
+            fast_windows=[30, 40],
+            slow_windows=[10, 20],
+            objective="sharpe_ratio",
+            n_trials=2,
+            timeout_seconds=5,
+            sampler_name="tpe",
+            seed=42,
+            startup_trials=2,
+            study_name="test-invalid-space",
+            init_cash=10_000.0,
+            portfolio_freq="1D",
+            next_bar_execution=True,
+            friction_kwargs={"fees": 0.0, "fixed_fees": 0.0, "slippage": 0.0},
+            max_size_array=None,
+        )
+
+
+def test_optuna_optimizer_raises_when_all_sampled_trials_invalid(monkeypatch) -> None:
+    """Optimizer should fail when sampled trials never produce a valid pair."""
+    idx = pd.date_range("2024-01-01", periods=12, freq="D", tz="UTC")
+    price = pd.Series(np.linspace(100, 112, num=len(idx)), index=idx)
+
+    class _InvalidOnlyStudy:
+        def __init__(self) -> None:
+            self.trials: list[_FakeTrial] = []
+            self.best_trial: _FakeTrial | None = None
+
+        def optimize(self, objective, n_trials: int, timeout: int | None = None) -> None:
+            _ = timeout
+            for _ in range(n_trials):
+                trial = _FakeTrial({"fast": 20, "slow": 20})
+                trial.value = float(objective(trial))
+                self.trials.append(trial)
+
+    monkeypatch.setattr(
+        optuna_integration,
+        "run",
+        lambda *args, **kwargs: (_DummyPortfolio(pd.Series(0.0, index=idx)), None, None),
+    )
+
+    fake_optuna = SimpleNamespace(
+        create_study=lambda **kwargs: _InvalidOnlyStudy(),
+        samplers=SimpleNamespace(
+            TPESampler=lambda **kwargs: _FakeSampler(**kwargs),
+            RandomSampler=lambda **kwargs: _FakeSampler(**kwargs),
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "optuna", fake_optuna)
+
+    with pytest.raises(ValueError, match="produced no valid trials"):
+        optuna_integration.optimize_sma_parameters(
+            price,
+            fast_windows=[10, 20],
+            slow_windows=[20],
+            objective="sharpe_ratio",
+            n_trials=1,
+            timeout_seconds=5,
+            sampler_name="tpe",
+            seed=42,
+            startup_trials=1,
+            study_name="test-invalid-sampled",
+            init_cash=10_000.0,
+            portfolio_freq="1D",
+            next_bar_execution=True,
+            friction_kwargs={"fees": 0.0, "fixed_fees": 0.0, "slippage": 0.0},
+            max_size_array=None,
+        )

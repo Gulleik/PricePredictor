@@ -471,3 +471,35 @@ def test_main_raises_when_wfo_generates_no_windows(monkeypatch) -> None:
 
     with pytest.raises(ValueError, match="No valid WFO windows generated"):
         run_hyperparameter_search.main()
+
+
+def test_trial_metric_series_keeps_best_value_for_duplicate_params() -> None:
+    """Duplicate trials for same pair should keep the best observed objective."""
+
+    class _DummyTrial:
+        def __init__(
+            self,
+            fast: int,
+            slow: int,
+            value: float,
+            *,
+            invalid_combo: bool = False,
+        ) -> None:
+            self.params = {"fast": fast, "slow": slow}
+            self.value = value
+            self.user_attrs = {"invalid_combo": invalid_combo}
+
+    class _DummyStudy:
+        def __init__(self) -> None:
+            self.trials = [
+                _DummyTrial(10, 40, 0.70),
+                _DummyTrial(10, 40, 1.10),
+                _DummyTrial(5, 30, 0.90),
+                _DummyTrial(20, 20, 5.00, invalid_combo=True),
+            ]
+
+    metric_series = run_hyperparameter_search._trial_metric_series(_DummyStudy())
+
+    assert float(metric_series.loc[(10, 40)]) == pytest.approx(1.10)
+    assert float(metric_series.loc[(5, 30)]) == pytest.approx(0.90)
+    assert (20, 20) not in metric_series.index
