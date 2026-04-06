@@ -44,7 +44,8 @@ OPTUNA_SAMPLER: Literal["tpe", "random"] = "tpe"
 OPTUNA_N_TRIALS = 50
 OPTUNA_TIMEOUT_SECONDS = 600
 OPTUNA_SEED = 42
-OPTUNA_STUDY_NAME = "strategy_search"  # Study name prefix; strategy name appended at runtime
+# Study name prefix; strategy name is appended at runtime.
+OPTUNA_STUDY_NAME = "strategy_search"
 OPTUNA_STARTUP_TRIALS = 10
 RESULTS_DIR = Path("results")
 

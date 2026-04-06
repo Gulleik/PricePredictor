@@ -91,12 +91,13 @@ def optimize_strategy_parameters(
     market_data: pd.DataFrame | None = None,
 ) -> GenericSearchResult:
     """Generic strategy optimizer using Optuna.
-    
+
     Args:
         price: Close price series.
         strategy_name: Name of the strategy from StrategyName.
         param_space: Dict mapping parameter names to lists of valid values.
-        objective: Metric to maximize ('sharpe_ratio', 'sortino_ratio', 'calmar_ratio', 'total_return').
+        objective: Metric to maximize ('sharpe_ratio', 'sortino_ratio',
+            'calmar_ratio', 'total_return').
         n_trials: Number of Optuna trials.
         timeout_seconds: Search timeout in seconds (0 = no limit).
         sampler_name: 'tpe' or 'random'.
@@ -108,9 +109,10 @@ def optimize_strategy_parameters(
         next_bar_execution: Whether to shift signals forward by one bar.
         friction_kwargs: Friction model keyword arguments.
         max_size_array: Per-bar max position size constraints.
-        param_constraints: Optional function(params_dict) -> bool for constraint validation.
+        param_constraints: Optional function(params_dict) -> bool for
+            constraint validation.
         market_data: Optional full market data (OHLC); needed by some strategies.
-        
+
     Returns:
         GenericSearchResult with best parameters and metrics.
     """
@@ -145,9 +147,7 @@ def optimize_strategy_parameters(
                     trial.suggest_categorical(param_name, values)
                 )
             else:
-                trial_params[param_name] = trial.suggest_categorical(
-                    param_name, values
-                )
+                trial_params[param_name] = trial.suggest_categorical(param_name, values)
 
         # Apply constraints if provided
         if param_constraints is not None and not param_constraints(trial_params):
@@ -244,7 +244,6 @@ def optimize_strategy_parameters(
         best_metrics=best_metrics,
         strategy_name=strategy_name,
     )
-
 
 
 def optimize_sma_parameters(
