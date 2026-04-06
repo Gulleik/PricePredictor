@@ -8,46 +8,11 @@ import pandas as pd
 import vectorbt as vbt
 
 from src.config import DEFAULT_TIMEFRAME
-
-
-def _sanitize_max_size(
-    max_size: Any,
-    price_index: pd.Index,
-) -> tuple[Any | None, pd.Series | None]:
-    """Return max_size safe for VectorBT and validity mask for tradable bars."""
-    if max_size is None:
-        return None, None
-
-    arr = np.asarray(max_size, dtype=float)
-    if arr.ndim == 0:
-        value = float(arr)
-        if not np.isfinite(value) or value <= 0:
-            mask = pd.Series(False, index=price_index)
-            return None, mask
-        return value, None
-
-    if arr.ndim != 1:
-        return max_size, None
-
-    if len(arr) != len(price_index):
-        raise ValueError(
-            "max_size length must match price length when provided as 1D array"
-        )
-
-    valid = np.isfinite(arr) & (arr > 0)
-    valid_mask = pd.Series(valid, index=price_index)
-    safe_arr = np.where(valid, arr, np.finfo(float).tiny)
-    return safe_arr, valid_mask
-
-
-def _apply_valid_mask(signals: Any, valid_mask: pd.Series) -> Any:
-    """Apply row-wise tradability mask to Series/DataFrame boolean signals."""
-    if isinstance(signals, pd.Series):
-        return signals & valid_mask
-    if isinstance(signals, pd.DataFrame):
-        mask_2d = np.broadcast_to(valid_mask.to_numpy().reshape(-1, 1), signals.shape)
-        return signals.where(mask_2d, False)
-    return signals
+from src.strategies.common import (
+    apply_next_bar_execution,
+    apply_valid_mask,
+    sanitize_max_size,
+)
 
 
 def run(
@@ -90,13 +55,12 @@ def run(
 
     # Shift execution to next bar to avoid same-bar signal fills when requested.
     if next_bar_execution:
-        entries = entries.vbt.fshift(1).fillna(False).astype(bool)
-        exits = exits.vbt.fshift(1).fillna(False).astype(bool)
+        entries, exits = apply_next_bar_execution(entries, exits)
 
-    safe_max_size, valid_mask = _sanitize_max_size(max_size, price.index)
+    safe_max_size, valid_mask = sanitize_max_size(max_size, price.index)
     if valid_mask is not None:
-        entries = _apply_valid_mask(entries, valid_mask)
-        exits = _apply_valid_mask(exits, valid_mask)
+        entries = apply_valid_mask(entries, valid_mask)
+        exits = apply_valid_mask(exits, valid_mask)
 
     portfolio_kwargs: dict[str, Any] = {
         "init_cash": init_cash,
@@ -162,13 +126,12 @@ def run_scan(
 
     # Apply next-bar execution if requested
     if next_bar_execution:
-        entries = entries.vbt.fshift(1).fillna(False).astype(bool)
-        exits = exits.vbt.fshift(1).fillna(False).astype(bool)
+        entries, exits = apply_next_bar_execution(entries, exits)
 
-    safe_max_size, valid_mask = _sanitize_max_size(max_size, price.index)
+    safe_max_size, valid_mask = sanitize_max_size(max_size, price.index)
     if valid_mask is not None:
-        entries = _apply_valid_mask(entries, valid_mask)
-        exits = _apply_valid_mask(exits, valid_mask)
+        entries = apply_valid_mask(entries, valid_mask)
+        exits = apply_valid_mask(exits, valid_mask)
 
     broadcast_max_size = safe_max_size
     if safe_max_size is not None:

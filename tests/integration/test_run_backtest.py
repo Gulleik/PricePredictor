@@ -78,6 +78,7 @@ def test_main_uses_config_values_and_runs_flow(monkeypatch, capsys) -> None:
     )
 
     monkeypatch.setattr(run_backtest, "BACKTEST_SYMBOL", "LTC/USD")
+    monkeypatch.setattr(run_backtest, "ACTIVE_STRATEGY", "sma_crossover")
     monkeypatch.setattr(run_backtest, "BACKTEST_FAST_WINDOW", 7)
     monkeypatch.setattr(run_backtest, "BACKTEST_SLOW_WINDOW", 21)
     monkeypatch.setattr(run_backtest, "BACKTEST_RENDER_CHART", True)
@@ -178,6 +179,7 @@ def test_main_skips_chart_when_disabled(monkeypatch, capsys) -> None:
     )
 
     monkeypatch.setattr(run_backtest, "BACKTEST_SYMBOL", "LTC/USD")
+    monkeypatch.setattr(run_backtest, "ACTIVE_STRATEGY", "sma_crossover")
     monkeypatch.setattr(run_backtest, "BACKTEST_FAST_WINDOW", 7)
     monkeypatch.setattr(run_backtest, "BACKTEST_SLOW_WINDOW", 21)
     monkeypatch.setattr(run_backtest, "BACKTEST_RENDER_CHART", False)

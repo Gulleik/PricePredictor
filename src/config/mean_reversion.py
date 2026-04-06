@@ -1,0 +1,19 @@
+"""Mean reversion strategy configuration."""
+
+# Single-run defaults
+RSI_PERIOD = 14
+OVERSOLD = 30.0
+OVERBOUGHT = 70.0
+BB_WINDOW = 20
+BB_STD = 2.0
+USE_BOLLINGER = True
+VOL_LOOKBACK = 24
+VOL_MAX_ANNUALIZED = 1.5
+
+# Hyperparameter ranges
+RSI_PERIOD_VALUES = [8, 10, 12, 14, 18]
+OVERSOLD_VALUES = [20.0, 25.0, 30.0, 35.0]
+OVERBOUGHT_VALUES = [65.0, 70.0, 75.0, 80.0]
+BB_WINDOW_VALUES = [14, 20, 26]
+BB_STD_VALUES = [1.5, 2.0, 2.5]
+VOL_MAX_VALUES = [1.0, 1.5, 2.0]

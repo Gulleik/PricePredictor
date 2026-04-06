@@ -3,6 +3,7 @@
 import time
 
 from src.config import (
+    ACTIVE_STRATEGY,
     BACKTEST_FAST_WINDOW,
     BACKTEST_RENDER_CHART,
     BACKTEST_SLOW_WINDOW,
@@ -16,6 +17,25 @@ from src.config import (
     ENABLE_NEXT_BAR_EXECUTION,
     KELLY_FACTOR,
     MAX_VOLUME_PARTICIPATION,
+    MEAN_REVERSION_BB_STD,
+    MEAN_REVERSION_BB_WINDOW,
+    MEAN_REVERSION_OVERBOUGHT,
+    MEAN_REVERSION_OVERSOLD,
+    MEAN_REVERSION_RSI_PERIOD,
+    MEAN_REVERSION_USE_BOLLINGER,
+    MEAN_REVERSION_VOL_LOOKBACK,
+    MEAN_REVERSION_VOL_MAX_ANNUALIZED,
+    ORB_ALLOW_SHORT,
+    ORB_BREAKOUT_BUFFER,
+    ORB_RANGE_BARS,
+    TREND_ATR_STOP_MULTIPLE,
+    TREND_ATR_WINDOW,
+    TREND_EMA_FAST_WINDOW,
+    TREND_EMA_SLOW_WINDOW,
+    VOL_BREAKOUT_ATR_MIN_FRACTION,
+    VOL_BREAKOUT_ATR_WINDOW,
+    VOL_BREAKOUT_DONCHIAN_WINDOW,
+    VOL_BREAKOUT_USE_ATR_FILTER,
 )
 from src.data import get_close_price_series, load_crypto_bars
 from src.date_range import get_default_date_range
@@ -25,6 +45,7 @@ from src.models.risk import (
     generate_position_sizes,
 )
 from src.strategies.sma_crossover import run as sma_run
+from src.strategies import get_strategy_module
 
 
 def main() -> None:
@@ -56,47 +77,142 @@ def main() -> None:
         enable_friction=ENABLE_FRICTION_MODEL
     )
 
-    print("[2/4] Running SMA crossover backtest...")
+    strategy_module = get_strategy_module(ACTIVE_STRATEGY)
+    if ACTIVE_STRATEGY == "sma_crossover":
+        print("[2/4] Running SMA crossover backtest...")
+    else:
+        print(f"[2/4] Running {ACTIVE_STRATEGY} backtest...")
     t1 = time.perf_counter()
-    pf, fast_ma, slow_ma = sma_run(
-        price,
-        fast=BACKTEST_FAST_WINDOW,
-        slow=BACKTEST_SLOW_WINDOW,
-        init_cash=DEFAULT_INIT_CASH,
-        next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
+    strategy_kwargs = {
+        "init_cash": DEFAULT_INIT_CASH,
+        "next_bar_execution": ENABLE_NEXT_BAR_EXECUTION,
+        "max_size": max_size_array,
         **friction_kwargs,
-        max_size=max_size_array,
-    )
+    }
+
+    if ACTIVE_STRATEGY == "sma_crossover":
+        strategy_kwargs.update(
+            {
+                "fast": BACKTEST_FAST_WINDOW,
+                "slow": BACKTEST_SLOW_WINDOW,
+            }
+        )
+        pf, fast_ma, slow_ma = sma_run(price, **strategy_kwargs)
+        indicators = {
+            "Fast MA": fast_ma.ma,
+            "Slow MA": slow_ma.ma,
+        }
+    elif ACTIVE_STRATEGY == "mean_reversion":
+        strategy_kwargs.update(
+            {
+                "portfolio_freq": DEFAULT_TIMEFRAME,
+                "rsi_period": MEAN_REVERSION_RSI_PERIOD,
+                "oversold": MEAN_REVERSION_OVERSOLD,
+                "overbought": MEAN_REVERSION_OVERBOUGHT,
+                "bb_window": MEAN_REVERSION_BB_WINDOW,
+                "bb_std": MEAN_REVERSION_BB_STD,
+                "use_bollinger": MEAN_REVERSION_USE_BOLLINGER,
+                "vol_lookback": MEAN_REVERSION_VOL_LOOKBACK,
+                "vol_max_annualized": MEAN_REVERSION_VOL_MAX_ANNUALIZED,
+            }
+        )
+        pf, rsi, bb_upper, bb_lower = strategy_module.run(price, **strategy_kwargs)
+        indicators = {
+            "RSI": rsi,
+            "BB Upper": bb_upper,
+            "BB Lower": bb_lower,
+        }
+    elif ACTIVE_STRATEGY == "trend_following":
+        strategy_kwargs.update(
+            {
+                "portfolio_freq": DEFAULT_TIMEFRAME,
+                "fast_window": TREND_EMA_FAST_WINDOW,
+                "slow_window": TREND_EMA_SLOW_WINDOW,
+                "atr_window": TREND_ATR_WINDOW,
+                "atr_stop_multiple": TREND_ATR_STOP_MULTIPLE,
+                "high": market_data["high"],
+                "low": market_data["low"],
+            }
+        )
+        pf, fast_ema, slow_ema, atr, trail = strategy_module.run(
+            price, **strategy_kwargs
+        )
+        indicators = {
+            "Fast EMA": fast_ema,
+            "Slow EMA": slow_ema,
+            "ATR": atr,
+            "ATR Trail": trail,
+        }
+    elif ACTIVE_STRATEGY == "volatility_breakout":
+        strategy_kwargs.update(
+            {
+                "portfolio_freq": DEFAULT_TIMEFRAME,
+                "high": market_data["high"],
+                "low": market_data["low"],
+                "donchian_window": VOL_BREAKOUT_DONCHIAN_WINDOW,
+                "atr_window": VOL_BREAKOUT_ATR_WINDOW,
+                "use_atr_filter": VOL_BREAKOUT_USE_ATR_FILTER,
+                "atr_min_fraction": VOL_BREAKOUT_ATR_MIN_FRACTION,
+            }
+        )
+        pf, donchian_high, donchian_low, atr = strategy_module.run(
+            price, **strategy_kwargs
+        )
+        indicators = {
+            "Donchian High": donchian_high,
+            "Donchian Low": donchian_low,
+            "ATR": atr,
+        }
+    elif ACTIVE_STRATEGY == "orb":
+        strategy_kwargs.update(
+            {
+                "portfolio_freq": DEFAULT_TIMEFRAME,
+                "high": market_data["high"],
+                "low": market_data["low"],
+                "range_bars": ORB_RANGE_BARS,
+                "breakout_buffer": ORB_BREAKOUT_BUFFER,
+                "allow_short": ORB_ALLOW_SHORT,
+            }
+        )
+        pf, range_high, range_low = strategy_module.run(price, **strategy_kwargs)
+        indicators = {
+            "ORB High": range_high,
+            "ORB Low": range_low,
+        }
+    else:
+        raise ValueError(f"Unsupported ACTIVE_STRATEGY: {ACTIVE_STRATEGY}")
 
     # Compute Kelly sizing from signals aligned to actual execution timing.
-    entries = fast_ma.ma_crossed_above(slow_ma)
-    exits = fast_ma.ma_crossed_below(slow_ma)
-    if ENABLE_NEXT_BAR_EXECUTION:
-        entries = entries.astype(bool).shift(1, fill_value=False)
-        exits = exits.astype(bool).shift(1, fill_value=False)
+    pf_kelly = None
+    kelly_raw = 0.0
+    kelly_scaled = 0.0
+    if ACTIVE_STRATEGY == "sma_crossover":
+        entries = fast_ma.ma_crossed_above(slow_ma)
+        exits = fast_ma.ma_crossed_below(slow_ma)
+        if ENABLE_NEXT_BAR_EXECUTION:
+            entries = entries.astype(bool).shift(1, fill_value=False)
+            exits = exits.astype(bool).shift(1, fill_value=False)
 
-    kelly_raw = estimate_conservative_kelly(entries, exits, price)
-    kelly_scaled = kelly_raw * KELLY_FACTOR
+        kelly_raw = estimate_conservative_kelly(entries, exits, price)
+        kelly_scaled = kelly_raw * KELLY_FACTOR
 
-    if kelly_scaled > 0:
-        position_sizes = generate_position_sizes(
-            entries,
-            price,
-            kelly_scaled,
-            DEFAULT_INIT_CASH,
-        )
-        pf_kelly, _, _ = sma_run(
-            price,
-            fast=BACKTEST_FAST_WINDOW,
-            slow=BACKTEST_SLOW_WINDOW,
-            init_cash=DEFAULT_INIT_CASH,
-            next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
-            **friction_kwargs,
-            max_size=max_size_array,
-            position_sizes=position_sizes,
-        )
-    else:
-        pf_kelly = None
+        if kelly_scaled > 0:
+            position_sizes = generate_position_sizes(
+                entries,
+                price,
+                kelly_scaled,
+                DEFAULT_INIT_CASH,
+            )
+            pf_kelly, _, _ = sma_run(
+                price,
+                fast=BACKTEST_FAST_WINDOW,
+                slow=BACKTEST_SLOW_WINDOW,
+                init_cash=DEFAULT_INIT_CASH,
+                next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
+                **friction_kwargs,
+                max_size=max_size_array,
+                position_sizes=position_sizes,
+            )
 
     print(
         "[2/4] Done in "
@@ -121,10 +237,10 @@ def main() -> None:
         # Use Kelly-sized portfolio if available, otherwise baseline
         pf_to_plot = pf_kelly if pf_kelly is not None else pf
 
-        # Plot: price, MAs, position markers
+        # Plot: price, indicators, position markers
         fig = price.vbt.plot(trace_kwargs=dict(name="Close"))
-        fast_ma.ma.vbt.plot(trace_kwargs=dict(name="Fast MA"), fig=fig)
-        slow_ma.ma.vbt.plot(trace_kwargs=dict(name="Slow MA"), fig=fig)
+        for label, indicator in indicators.items():
+            indicator.vbt.plot(trace_kwargs=dict(name=label), fig=fig)
         pf_to_plot.plot_positions(close_trace_kwargs=dict(visible=False), fig=fig)
         fig.show()
     else:
