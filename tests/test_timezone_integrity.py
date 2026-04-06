@@ -53,8 +53,15 @@ def test_load_crypto_bars_rejects_naive_cache_index(monkeypatch, tmp_path) -> No
     )
 
     naive_index = pd.date_range("2024-01-01", periods=2, freq="D")
-    pd.Series([100.0, 101.0], index=naive_index, name="close").to_frame(
-        name="close"
+    pd.DataFrame(
+        {
+            "open": [99.0, 100.0],
+            "high": [101.0, 102.0],
+            "low": [98.0, 99.0],
+            "close": [100.0, 101.0],
+            "volume": [10.0, 11.0],
+        },
+        index=naive_index,
     ).to_parquet(cache_path)
 
     with pytest.raises(ValueError, match="timezone-aware"):

@@ -12,17 +12,17 @@ HYPERPARAM_SYMBOL = DEFAULT_SYMBOLS[0]
 
 # Default date range settings
 DATE_REFRESH_CADENCE: Literal["month", "week", "day"] = "week"
-DEFAULT_LOOKBACK_DAYS = 365
+DEFAULT_LOOKBACK_DAYS = 365  # 1 year of daily data
 
 # Default timeframe for bars
-DEFAULT_TIMEFRAME = "1D"
+DEFAULT_TIMEFRAME = "1h"
 
 # Default initial capital for backtests
 DEFAULT_INIT_CASH = 10_000.0
 
 # Single-run SMA defaults
-BACKTEST_FAST_WINDOW = 5
-BACKTEST_SLOW_WINDOW = 15
+BACKTEST_FAST_WINDOW = 10
+BACKTEST_SLOW_WINDOW = 25
 BACKTEST_RENDER_CHART = False
 
 # Hyperparameter search defaults
@@ -30,6 +30,22 @@ SCAN_OBJECTIVE = "sharpe_ratio"
 FAST_WINDOWS = [5, 10, 15, 20, 25]
 SLOW_WINDOWS = [30, 40, 50, 60]
 HYPERPARAM_TOP_N = 5
+
+# Milestone 4: validation and sensitivity defaults
+WFO_ENABLED = True
+WFO_MODE: Literal["auto", "preset", "manual"] = "auto"
+WFO_PRESET: Literal["quick", "balanced", "robust"] = "balanced"
+WFO_IS_WINDOW_BARS = 252
+WFO_OOS_FRACTION = 0.25
+WFO_STEP_BARS = 63
+WFO_OOS_METRIC: Literal["sharpe_ratio", "total_return"] = "sharpe_ratio"
+
+REGIME_LOOKBACK_FAST = 50
+REGIME_LOOKBACK_SLOW = 200
+REGIME_SIDEWAYS_BAND = 0.01
+
+SENSITIVITY_HEATMAP_OUTPUT_PATH = Path("data/sensitivity_heatmap.png")
+SENSITIVITY_MATRIX_OUTPUT_PATH = Path("data/sensitivity_matrix.csv")
 
 # Data cache settings
 CACHE_ENABLED = True

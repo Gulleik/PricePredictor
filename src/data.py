@@ -56,7 +56,16 @@ def _load_from_cache(cache_path: Path) -> Union[pd.DataFrame, None]:
     if not CACHE_ENABLED or not cache_path.exists():
         return None
 
-    cached_df = pd.read_parquet(cache_path)
+    cached_df: pd.DataFrame
+    try:
+        cached_df = pd.read_parquet(cache_path)
+    except ImportError:
+        # No parquet engine available: skip cache and fetch fresh data.
+        print(
+            f"Parquet dependencies are unavailable; skipping cache read: {cache_path}"
+        )
+        return None
+
     required_cols = {"open", "high", "low", "close", "volume"}
     if not required_cols.issubset(cached_df.columns):
         # Backward compatibility: older cache files may store close-only data.
@@ -78,7 +87,13 @@ def _save_to_cache(cache_path: Path, ohlcv: pd.DataFrame) -> None:
     """Persist OHLCV bars as parquet for fast repeat access."""
     if not CACHE_ENABLED:
         return
-    ohlcv.sort_index().to_parquet(cache_path)
+    sorted_ohlcv = ohlcv.sort_index()
+    try:
+        sorted_ohlcv.to_parquet(cache_path)
+    except ImportError:
+        print(
+            f"Parquet dependencies are unavailable; skipping cache write: {cache_path}"
+        )
 
 
 def _parse_timeframe(timeframe: str) -> TimeFrame:

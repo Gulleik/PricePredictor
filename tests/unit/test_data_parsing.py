@@ -7,8 +7,10 @@ import pytest
 
 from src.data import (
     _cache_filename,
+    _load_from_cache,
     _parse_datetime,
     _parse_timeframe,
+    _save_to_cache,
     load_crypto_bars,
 )
 
@@ -64,7 +66,7 @@ def test_load_crypto_bars_uses_cache_when_available(monkeypatch, tmp_path) -> No
         _parse_datetime("2024-01-03"),
         _parse_timeframe("1d"),
     )
-    expected.to_parquet(cache_path)
+    data_module._save_to_cache(cache_path, expected)
 
     class _UnexpectedClient:
         def __init__(self, *args, **kwargs) -> None:
@@ -129,3 +131,82 @@ def test_load_crypto_bars_calls_api_on_cache_miss_and_saves(
         _parse_timeframe("1d"),
     )
     assert expected_cache_path.exists()
+
+
+def test_load_from_cache_returns_none_when_parquet_engine_missing(
+    monkeypatch, tmp_path
+) -> None:
+    """Missing parquet engine should be treated as cache miss."""
+    import src.data as data_module
+
+    monkeypatch.setattr(data_module, "CACHE_ENABLED", True)
+    cache_path = tmp_path / "bars.parquet"
+    cache_path.write_bytes(b"not used")
+
+    def _raise_import_error(*args, **kwargs):
+        _ = (args, kwargs)
+        raise ImportError("Missing optional dependency 'pyarrow'")
+
+    monkeypatch.setattr(data_module.pd, "read_parquet", _raise_import_error)
+
+    assert _load_from_cache(cache_path) is None
+
+
+def test_load_from_cache_reraises_unexpected_parquet_errors(
+    monkeypatch, tmp_path
+) -> None:
+    """Unexpected parquet read errors should not be silently masked."""
+    import src.data as data_module
+
+    monkeypatch.setattr(data_module, "CACHE_ENABLED", True)
+    cache_path = tmp_path / "bars.parquet"
+    cache_path.write_bytes(b"invalid parquet payload")
+
+    def _raise_value_error(*args, **kwargs):
+        _ = (args, kwargs)
+        raise ValueError("Corrupt parquet file")
+
+    monkeypatch.setattr(data_module.pd, "read_parquet", _raise_value_error)
+
+    with pytest.raises(ValueError, match="Corrupt parquet file"):
+        _load_from_cache(cache_path)
+
+
+def test_save_to_cache_skips_write_when_parquet_engine_missing(
+    monkeypatch, tmp_path
+) -> None:
+    """Cache save should not write pickle payloads to .parquet paths."""
+    import src.data as data_module
+
+    monkeypatch.setattr(data_module, "CACHE_ENABLED", True)
+
+    index = pd.date_range("2024-01-01", periods=2, freq="D", tz="UTC")
+    ohlcv = pd.DataFrame(
+        {
+            "open": [1.0, 2.0],
+            "high": [1.5, 2.5],
+            "low": [0.5, 1.5],
+            "close": [1.2, 2.2],
+            "volume": [10.0, 11.0],
+        },
+        index=index,
+    )
+    cache_path = tmp_path / "bars.parquet"
+
+    to_pickle_called = {"called": False}
+
+    def _raise_import_error(*args, **kwargs):
+        _ = (args, kwargs)
+        raise ImportError("Missing optional dependency 'pyarrow'")
+
+    def _track_to_pickle(*args, **kwargs):
+        _ = (args, kwargs)
+        to_pickle_called["called"] = True
+
+    monkeypatch.setattr(pd.DataFrame, "to_parquet", _raise_import_error)
+    monkeypatch.setattr(pd.DataFrame, "to_pickle", _track_to_pickle)
+
+    _save_to_cache(cache_path, ohlcv)
+
+    assert to_pickle_called["called"] is False
+    assert not cache_path.exists()
