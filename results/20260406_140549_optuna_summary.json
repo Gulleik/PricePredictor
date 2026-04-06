@@ -1,0 +1,42 @@
+{
+  "timestamp_utc": "20260406_140549",
+  "objective": "sharpe_ratio",
+  "best_fast": 20,
+  "best_slow": 50,
+  "best_objective_value": 0.4072165807397124,
+  "best_metrics": {
+    "sharpe_ratio": 0.4072165807397124,
+    "sortino_ratio": 0.3819643312348193,
+    "calmar_ratio": 0.3189367564585032,
+    "max_drawdown": -0.1490193359271339,
+    "max_drawdown_duration": 6376.0,
+    "total_return": 0.047522191186961174
+  },
+  "config": {
+    "symbol": "BTC/USD",
+    "timeframe": "1h",
+    "scan_objective": "sharpe_ratio",
+    "fast_windows": [
+      5,
+      10,
+      15,
+      20,
+      25
+    ],
+    "slow_windows": [
+      30,
+      40,
+      50,
+      60
+    ],
+    "optuna_sampler": "tpe",
+    "optuna_n_trials": 50,
+    "optuna_timeout_seconds": 600,
+    "optuna_seed": 42,
+    "optuna_startup_trials": 10,
+    "optuna_study_name": "sma_search",
+    "wfo_enabled": false,
+    "enable_next_bar_execution": true,
+    "enable_friction_model": true
+  }
+}

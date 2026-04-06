@@ -1,10 +1,15 @@
 """Run hyperparameter search for SMA crossover and report best parameters."""
 
 from collections import defaultdict
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
+from src.analysis.optuna_integration import (
+    optimize_sma_parameters,
+    persist_search_artifacts,
+)
 from src.analysis.sensitivity import build_sensitivity_matrix, save_sensitivity_heatmap
 from src.analysis.wfo import generate_wfo_windows
 from src.config import (
@@ -19,9 +24,16 @@ from src.config import (
     HYPERPARAM_SYMBOL,
     HYPERPARAM_TOP_N,
     MAX_VOLUME_PARTICIPATION,
+    OPTUNA_N_TRIALS,
+    OPTUNA_SAMPLER,
+    OPTUNA_SEED,
+    OPTUNA_STARTUP_TRIALS,
+    OPTUNA_STUDY_NAME,
+    OPTUNA_TIMEOUT_SECONDS,
     REGIME_LOOKBACK_FAST,
     REGIME_LOOKBACK_SLOW,
     REGIME_SIDEWAYS_BAND,
+    RESULTS_DIR,
     SCAN_OBJECTIVE,
     SENSITIVITY_HEATMAP_OUTPUT_PATH,
     SENSITIVITY_MATRIX_OUTPUT_PATH,
@@ -37,6 +49,7 @@ from src.config import (
 from src.data import get_close_price_series, load_crypto_bars
 from src.date_range import get_default_date_range
 from src.models.broker import BrokerModel
+from src.models.metrics import compute_advanced_metrics
 from src.models.regime import classify_regimes
 from src.strategies.sma_crossover import run, run_scan
 
@@ -52,14 +65,102 @@ WFO_PRESET_WINDOWS = {
 }
 
 
+def _periods_per_year_from_freq(freq: str) -> int:
+    normalized = freq.strip().lower()
+    if normalized.endswith("h"):
+        amount = int(normalized[:-1] or 1)
+        return max(1, int(round((24 * 365) / amount)))
+    if normalized.endswith("d"):
+        amount = int(normalized[:-1] or 1)
+        return max(1, int(round(252 / amount)))
+    return 252
+
+
+def _extract_scalar(value: Any) -> float:
+    if isinstance(value, pd.Series):
+        return float(value.iloc[0])
+    return float(value)
+
+
+def _metric_from_returns(
+    returns: pd.Series | pd.DataFrame,
+    objective: str,
+    periods_per_year: int,
+) -> pd.Series:
+    if isinstance(returns, pd.Series):
+        returns = returns.to_frame("metric")
+
+    values: dict[Any, float] = {}
+    for col in returns.columns:
+        metrics = compute_advanced_metrics(
+            returns[col],
+            periods_per_year=periods_per_year,
+        )
+        if objective == "sortino_ratio":
+            values[col] = metrics["sortino_ratio"]
+        elif objective == "calmar_ratio":
+            values[col] = metrics["calmar_ratio"]
+        else:
+            raise ValueError(
+                f"Unknown SCAN_OBJECTIVE: {objective}. "
+                "Use 'sharpe_ratio', 'total_return', 'sortino_ratio', "
+                "or 'calmar_ratio'."
+            )
+
+    metric_series = pd.Series(values)
+    if isinstance(metric_series.index, pd.Index) and len(metric_series) == 1:
+        metric_series.index = pd.Index([metric_series.index[0]])
+    return metric_series
+
+
+def _build_optuna_config_snapshot() -> dict[str, Any]:
+    return {
+        "symbol": HYPERPARAM_SYMBOL,
+        "timeframe": DEFAULT_TIMEFRAME,
+        "scan_objective": SCAN_OBJECTIVE,
+        "fast_windows": FAST_WINDOWS,
+        "slow_windows": SLOW_WINDOWS,
+        "optuna_sampler": OPTUNA_SAMPLER,
+        "optuna_n_trials": OPTUNA_N_TRIALS,
+        "optuna_timeout_seconds": OPTUNA_TIMEOUT_SECONDS,
+        "optuna_seed": OPTUNA_SEED,
+        "optuna_startup_trials": OPTUNA_STARTUP_TRIALS,
+        "optuna_study_name": OPTUNA_STUDY_NAME,
+        "wfo_enabled": WFO_ENABLED,
+        "enable_next_bar_execution": ENABLE_NEXT_BAR_EXECUTION,
+        "enable_friction_model": ENABLE_FRICTION_MODEL,
+    }
+
+
+def _trial_metric_series(study: Any) -> pd.Series:
+    values: dict[tuple[int, int], float] = {}
+    for trial in study.trials:
+        fast = trial.params.get("fast")
+        slow = trial.params.get("slow")
+        if fast is None or slow is None or trial.value is None:
+            continue
+        if trial.user_attrs.get("invalid_combo", False):
+            continue
+        values[(int(fast), int(slow))] = float(trial.value)
+    return pd.Series(values)
+
+
 def _get_metric_series(pf, objective: str) -> pd.Series:
     metric_method = OBJECTIVE_ACCESSORS.get(objective)
-    if metric_method is None:
+    if metric_method is not None:
+        metric_series = getattr(pf, metric_method)()
+    elif objective in {"sortino_ratio", "calmar_ratio"}:
+        metric_series = _metric_from_returns(
+            pf.returns(),
+            objective,
+            periods_per_year=_periods_per_year_from_freq(DEFAULT_TIMEFRAME),
+        )
+    else:
         raise ValueError(
             f"Unknown SCAN_OBJECTIVE: {objective}. "
-            "Use 'sharpe_ratio' or 'total_return'."
+            "Use 'sharpe_ratio', 'total_return', 'sortino_ratio', or 'calmar_ratio'."
         )
-    metric_series = getattr(pf, metric_method)()
+
     if not isinstance(metric_series, pd.Series):
         metric_series = pd.Series(metric_series)
     return metric_series
@@ -158,20 +259,27 @@ def _run_single_pass(
     friction_kwargs: dict,
     max_size_array: np.ndarray | None,
 ) -> None:
-    pf = run_scan(
+    search_result = optimize_sma_parameters(
         price,
         fast_windows=FAST_WINDOWS,
         slow_windows=SLOW_WINDOWS,
+        objective=SCAN_OBJECTIVE,
+        n_trials=OPTUNA_N_TRIALS,
+        timeout_seconds=OPTUNA_TIMEOUT_SECONDS,
+        sampler_name=OPTUNA_SAMPLER,
+        seed=OPTUNA_SEED,
+        startup_trials=OPTUNA_STARTUP_TRIALS,
+        study_name=OPTUNA_STUDY_NAME,
         init_cash=DEFAULT_INIT_CASH,
+        portfolio_freq=DEFAULT_TIMEFRAME,
         next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
-        **friction_kwargs,
-        max_size=max_size_array,
+        friction_kwargs=friction_kwargs,
+        max_size_array=max_size_array,
     )
 
-    metric_series = _get_metric_series(pf, SCAN_OBJECTIVE)
-    best_col = metric_series.idxmax()
-    best_fast, best_slow = best_col
-    best_value = metric_series.max()
+    best_fast = search_result.best_fast
+    best_slow = search_result.best_slow
+    best_value = search_result.best_objective_value
 
     print(f"Hyperparameter search ({SCAN_OBJECTIVE})")
     print(
@@ -179,23 +287,44 @@ def _run_single_pass(
         f"fast={best_fast}, slow={best_slow} -> "
         f"{SCAN_OBJECTIVE}={best_value:.4f}"
     )
+    print(
+        "  Metrics: "
+        f"Sharpe={search_result.best_metrics['sharpe_ratio']:.4f}, "
+        f"Sortino={search_result.best_metrics['sortino_ratio']:.4f}, "
+        f"Calmar={search_result.best_metrics['calmar_ratio']:.4f}, "
+        f"MaxDDDur(bars)={int(search_result.best_metrics['max_drawdown_duration'])}"
+    )
     print()
-    print("Best parameter stats:")
-    print(pf[best_col].stats())
-    print()
-
-    _print_top_combinations(metric_series, SCAN_OBJECTIVE)
-    _emit_sensitivity_outputs(metric_series, SCAN_OBJECTIVE)
 
     best_pf, _, _ = run(
         price,
-        fast=int(best_fast),
-        slow=int(best_slow),
+        fast=best_fast,
+        slow=best_slow,
         init_cash=DEFAULT_INIT_CASH,
         next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
         max_size=max_size_array,
+        portfolio_freq=DEFAULT_TIMEFRAME,
         **friction_kwargs,
     )
+
+    print("Best parameter stats:")
+    print(best_pf.stats())
+    print()
+
+    metric_series = _trial_metric_series(search_result.study)
+    if not metric_series.empty:
+        _print_top_combinations(metric_series, SCAN_OBJECTIVE)
+        _emit_sensitivity_outputs(metric_series, SCAN_OBJECTIVE)
+
+    trials_path, summary_path = persist_search_artifacts(
+        search_result,
+        output_dir=RESULTS_DIR,
+        objective=SCAN_OBJECTIVE,
+        config_snapshot=_build_optuna_config_snapshot(),
+    )
+    print(f"Optuna trials saved to: {trials_path}")
+    print(f"Run summary saved to: {summary_path}")
+
     strategy_returns = best_pf.returns()
     _print_regime_breakdown(price, strategy_returns)
 

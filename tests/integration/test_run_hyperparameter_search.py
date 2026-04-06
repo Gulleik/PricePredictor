@@ -44,6 +44,9 @@ class _DummyRunPortfolio:
     def returns(self) -> pd.Series:
         return self._returns
 
+    def stats(self) -> dict[str, float]:
+        return {"sharpe_ratio": 1.0}
+
 
 class _DummyPortfolio:
     def __init__(self, metric_series: pd.Series) -> None:
@@ -68,10 +71,6 @@ def _dummy_run_result(
 
 def test_main_uses_config_values(monkeypatch, capsys) -> None:
     """main should use configured symbol and top-n values."""
-    idx = pd.MultiIndex.from_tuples([(5, 30), (10, 40), (15, 60)])
-    metric_series = pd.Series([1.2, 0.7, 0.5], index=idx)
-    pf = _DummyPortfolio(metric_series)
-
     monkeypatch.setattr(run_hyperparameter_search, "HYPERPARAM_SYMBOL", "ETH/USD")
     monkeypatch.setattr(run_hyperparameter_search, "WFO_ENABLED", False)
     monkeypatch.setattr(run_hyperparameter_search, "HYPERPARAM_TOP_N", 2)
@@ -93,39 +92,94 @@ def test_main_uses_config_values(monkeypatch, capsys) -> None:
         assert timeframe == run_hyperparameter_search.DEFAULT_TIMEFRAME
         return pd.DataFrame({"close": range(100, 108)}, index=idx_price)
 
-    def fake_run_scan(
+    class _DummyTrial:
+        def __init__(self, fast: int, slow: int, value: float) -> None:
+            self.params = {"fast": fast, "slow": slow}
+            self.value = value
+            self.user_attrs = {"invalid_combo": False}
+
+    class _DummyStudy:
+        def __init__(self) -> None:
+            self.trials = [
+                _DummyTrial(10, 40, 1.2),
+                _DummyTrial(5, 30, 0.9),
+            ]
+
+    class _DummySearchResult:
+        def __init__(self) -> None:
+            self.study = _DummyStudy()
+            self.best_fast = 10
+            self.best_slow = 40
+            self.best_objective_value = 1.2
+            self.best_metrics = {
+                "sharpe_ratio": 1.2,
+                "sortino_ratio": 1.1,
+                "calmar_ratio": 0.8,
+                "max_drawdown_duration": 4.0,
+            }
+
+    def fake_optimize(
         price,
+        *,
         fast_windows,
         slow_windows,
+        objective,
+        n_trials,
+        timeout_seconds,
+        sampler_name,
+        seed,
+        startup_trials,
+        study_name,
         init_cash,
-        next_bar_execution=False,
-        fees=0,
-        fixed_fees=0,
-        slippage=0,
-        max_size=None,
+        portfolio_freq,
+        next_bar_execution,
+        friction_kwargs,
+        max_size_array,
     ):
         assert isinstance(price, pd.Series)
         assert fast_windows == run_hyperparameter_search.FAST_WINDOWS
         assert slow_windows == run_hyperparameter_search.SLOW_WINDOWS
+        assert objective == run_hyperparameter_search.SCAN_OBJECTIVE
+        assert n_trials == run_hyperparameter_search.OPTUNA_N_TRIALS
+        assert timeout_seconds == run_hyperparameter_search.OPTUNA_TIMEOUT_SECONDS
+        assert sampler_name == run_hyperparameter_search.OPTUNA_SAMPLER
+        assert seed == run_hyperparameter_search.OPTUNA_SEED
+        assert startup_trials == run_hyperparameter_search.OPTUNA_STARTUP_TRIALS
+        assert study_name == run_hyperparameter_search.OPTUNA_STUDY_NAME
         assert init_cash == run_hyperparameter_search.DEFAULT_INIT_CASH
+        assert portfolio_freq == run_hyperparameter_search.DEFAULT_TIMEFRAME
         assert next_bar_execution == run_hyperparameter_search.ENABLE_NEXT_BAR_EXECUTION
-        # Friction parameters are now centralized in broker model
+        _ = max_size_array
+
         if run_hyperparameter_search.ENABLE_FRICTION_MODEL:
-            assert fees > 0, "When friction enabled, fees should be > 0"
-            assert fixed_fees > 0, "When friction enabled, fixed_fees should be > 0"
-            assert slippage > 0, "When friction enabled, slippage should be > 0"
+            assert friction_kwargs["fees"] > 0
+            assert friction_kwargs["fixed_fees"] > 0
+            assert friction_kwargs["slippage"] > 0
         else:
-            assert fees == 0
-            assert fixed_fees == 0
-            assert slippage == 0
-        return pf
+            assert friction_kwargs["fees"] == 0
+            assert friction_kwargs["fixed_fees"] == 0
+            assert friction_kwargs["slippage"] == 0
+
+        return _DummySearchResult()
 
     monkeypatch.setattr(
         run_hyperparameter_search,
         "load_crypto_bars",
         fake_load_crypto_bars,
     )
-    monkeypatch.setattr(run_hyperparameter_search, "run_scan", fake_run_scan)
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "optimize_sma_parameters",
+        fake_optimize,
+    )
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "persist_search_artifacts",
+        lambda *args, **kwargs: (
+            run_hyperparameter_search.RESULTS_DIR / "trials.csv",
+            run_hyperparameter_search.RESULTS_DIR / "summary.json",
+        ),
+    )
     monkeypatch.setattr(
         run_hyperparameter_search,
         "run",
@@ -143,6 +197,7 @@ def test_main_uses_config_values(monkeypatch, capsys) -> None:
     assert "Hyperparameter search (sharpe_ratio)" in out
     assert "Top 2 combinations:" in out
     assert "Sensitivity heatmap saved to:" in out
+    assert "Optuna trials saved to:" in out
 
 
 def test_main_raises_for_unknown_objective(monkeypatch) -> None:
@@ -156,9 +211,9 @@ def test_main_raises_for_unknown_objective(monkeypatch) -> None:
     )
     monkeypatch.setattr(
         run_hyperparameter_search,
-        "run_scan",
-        lambda *args, **kwargs: _DummyPortfolio(
-            pd.Series([1.0], index=pd.MultiIndex.from_tuples([(5, 30)]))
+        "optimize_sma_parameters",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            ValueError("Unknown SCAN_OBJECTIVE")
         ),
     )
 
