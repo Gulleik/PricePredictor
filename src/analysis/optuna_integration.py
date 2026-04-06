@@ -65,9 +65,7 @@ def _build_sampler(sampler_name: str, seed: int, startup_trials: int) -> Any:
             multivariate=True,
         )
 
-    raise ValueError(
-        f"Unknown OPTUNA_SAMPLER: {sampler_name}. Use 'tpe' or 'random'."
-    )
+    raise ValueError(f"Unknown OPTUNA_SAMPLER: {sampler_name}. Use 'tpe' or 'random'.")
 
 
 def optimize_sma_parameters(
@@ -94,9 +92,7 @@ def optimize_sma_parameters(
     if timeout_seconds < 0:
         raise ValueError("OPTUNA_TIMEOUT_SECONDS must be >= 0")
 
-    has_valid_pair = any(
-        fast < slow for fast in fast_windows for slow in slow_windows
-    )
+    has_valid_pair = any(fast < slow for fast in fast_windows for slow in slow_windows)
     if not has_valid_pair:
         raise ValueError(
             "No valid fast/slow combinations in search space. "

@@ -155,7 +155,9 @@ def test_optuna_optimizer_raises_when_all_sampled_trials_invalid(monkeypatch) ->
             self.trials: list[_FakeTrial] = []
             self.best_trial: _FakeTrial | None = None
 
-        def optimize(self, objective, n_trials: int, timeout: int | None = None) -> None:
+        def optimize(
+            self, objective, n_trials: int, timeout: int | None = None
+        ) -> None:
             _ = timeout
             for _ in range(n_trials):
                 trial = _FakeTrial({"fast": 20, "slow": 20})
@@ -165,7 +167,11 @@ def test_optuna_optimizer_raises_when_all_sampled_trials_invalid(monkeypatch) ->
     monkeypatch.setattr(
         optuna_integration,
         "run",
-        lambda *args, **kwargs: (_DummyPortfolio(pd.Series(0.0, index=idx)), None, None),
+        lambda *args, **kwargs: (
+            _DummyPortfolio(pd.Series(0.0, index=idx)),
+            None,
+            None,
+        ),
     )
 
     fake_optuna = SimpleNamespace(
