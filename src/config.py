@@ -26,13 +26,27 @@ BACKTEST_SLOW_WINDOW = 25
 BACKTEST_RENDER_CHART = False
 
 # Hyperparameter search defaults
-SCAN_OBJECTIVE = "sharpe_ratio"
+SCAN_OBJECTIVE: Literal[
+    "sharpe_ratio",
+    "total_return",
+    "sortino_ratio",
+    "calmar_ratio",
+] = "sharpe_ratio"
 FAST_WINDOWS = [5, 10, 15, 20, 25]
 SLOW_WINDOWS = [30, 40, 50, 60]
 HYPERPARAM_TOP_N = 5
 
+# Milestone 5: systematic search and metrics defaults
+OPTUNA_SAMPLER: Literal["tpe", "random"] = "tpe"
+OPTUNA_N_TRIALS = 50
+OPTUNA_TIMEOUT_SECONDS = 600
+OPTUNA_SEED = 42
+OPTUNA_STUDY_NAME = "sma_search"
+OPTUNA_STARTUP_TRIALS = 10
+RESULTS_DIR = Path("results")
+
 # Milestone 4: validation and sensitivity defaults
-WFO_ENABLED = True
+WFO_ENABLED = False
 WFO_MODE: Literal["auto", "preset", "manual"] = "auto"
 WFO_PRESET: Literal["quick", "balanced", "robust"] = "balanced"
 WFO_IS_WINDOW_BARS = 252
