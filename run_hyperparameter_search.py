@@ -21,16 +21,25 @@ from src.config import (
     DEFAULT_TIMEFRAME,
     ENABLE_FRICTION_MODEL,
     ENABLE_NEXT_BAR_EXECUTION,
+    FAST_WINDOWS,
     HYPERPARAM_SEARCH_STRATEGY,
     HYPERPARAM_SYMBOL,
     HYPERPARAM_TOP_N,
     MAX_VOLUME_PARTICIPATION,
+    MEAN_REVERSION_BB_STD_VALUES,
+    MEAN_REVERSION_BB_WINDOW_VALUES,
+    MEAN_REVERSION_OVERBOUGHT_VALUES,
+    MEAN_REVERSION_OVERSOLD_VALUES,
+    MEAN_REVERSION_RSI_PERIOD_VALUES,
+    MEAN_REVERSION_VOL_MAX_VALUES,
     OPTUNA_N_TRIALS,
     OPTUNA_SAMPLER,
     OPTUNA_SEED,
     OPTUNA_STARTUP_TRIALS,
     OPTUNA_STUDY_NAME,
     OPTUNA_TIMEOUT_SECONDS,
+    ORB_BREAKOUT_BUFFER_VALUES,
+    ORB_RANGE_BARS_VALUES,
     REGIME_LOOKBACK_FAST,
     REGIME_LOOKBACK_SLOW,
     REGIME_SIDEWAYS_BAND,
@@ -38,23 +47,7 @@ from src.config import (
     SCAN_OBJECTIVE,
     SENSITIVITY_HEATMAP_OUTPUT_PATH,
     SENSITIVITY_MATRIX_OUTPUT_PATH,
-    WFO_ENABLED,
-    WFO_IS_WINDOW_BARS,
-    WFO_MODE,
-    WFO_OOS_FRACTION,
-    WFO_OOS_METRIC,
-    WFO_PRESET,
-    WFO_STEP_BARS,
-)
-from src.config import (
-    MEAN_REVERSION_BB_STD_VALUES,
-    MEAN_REVERSION_BB_WINDOW_VALUES,
-    MEAN_REVERSION_OVERBOUGHT_VALUES,
-    MEAN_REVERSION_OVERSOLD_VALUES,
-    MEAN_REVERSION_RSI_PERIOD_VALUES,
-    MEAN_REVERSION_VOL_MAX_VALUES,
-    ORB_BREAKOUT_BUFFER_VALUES,
-    ORB_RANGE_BARS_VALUES,
+    SLOW_WINDOWS,
     TREND_ATR_STOP_MULTIPLES,
     TREND_ATR_WINDOWS,
     TREND_EMA_FAST_WINDOWS,
@@ -62,8 +55,13 @@ from src.config import (
     VOL_BREAKOUT_ATR_MIN_VALUES,
     VOL_BREAKOUT_ATR_WINDOWS,
     VOL_BREAKOUT_DONCHIAN_WINDOWS,
-    FAST_WINDOWS,
-    SLOW_WINDOWS,
+    WFO_ENABLED,
+    WFO_IS_WINDOW_BARS,
+    WFO_MODE,
+    WFO_OOS_FRACTION,
+    WFO_OOS_METRIC,
+    WFO_PRESET,
+    WFO_STEP_BARS,
 )
 from src.data import get_close_price_series, load_crypto_bars
 from src.date_range import get_default_date_range
@@ -247,7 +245,11 @@ def _print_top_combinations(
     top_cols = metric_series.nlargest(top_n)
     print(f"Top {top_n} combinations:")
     for params, val in top_cols.items():
-        if isinstance(params, tuple) and len(params) == 2 and isinstance(params[0], int):
+        if (
+            isinstance(params, tuple)
+            and len(params) == 2
+            and isinstance(params[0], int)
+        ):
             # SMA-style: (fast, slow) - both integers
             fast, slow = params
             print(f"  fast={fast}, slow={slow}: {objective}={val:.4f}")
@@ -361,7 +363,7 @@ def _run_single_pass(
     param_space, param_constraints = _build_param_space_and_constraints(
         HYPERPARAM_SEARCH_STRATEGY
     )
-    
+
     study_name = f"{OPTUNA_STUDY_NAME}_{HYPERPARAM_SEARCH_STRATEGY}"
     search_result = optimize_strategy_parameters(
         price,
@@ -387,7 +389,9 @@ def _run_single_pass(
     params_str = ", ".join(f"{k}={v}" for k, v in sorted(best_params.items()))
     print(f"Hyperparameter search ({SCAN_OBJECTIVE})")
     print(
-        f"  Best: {params_str} -> {SCAN_OBJECTIVE}={search_result.best_objective_value:.4f}"
+        "  Best: "
+        f"{params_str} -> {SCAN_OBJECTIVE}="
+        f"{search_result.best_objective_value:.4f}"
     )
     print(
         "  Metrics: "
@@ -400,7 +404,11 @@ def _run_single_pass(
 
     # Run best parameters on full dataset
     run_args = [price]
-    if HYPERPARAM_SEARCH_STRATEGY in {"trend_following", "volatility_breakout", "orb"}:
+    if HYPERPARAM_SEARCH_STRATEGY in {
+        "trend_following",
+        "volatility_breakout",
+        "orb",
+    }:
         run_args.extend([market_data["high"], market_data["low"]])
 
     best_pf = strategy_module.run(
@@ -450,7 +458,7 @@ def _run_wfo(
     param_space, param_constraints = _build_param_space_and_constraints(
         HYPERPARAM_SEARCH_STRATEGY
     )
-    
+
     is_window_bars, oos_window_bars, step_bars = _resolve_wfo_windows(len(price))
 
     print(
@@ -486,7 +494,11 @@ def _run_wfo(
         # Slice market data for this window if needed
         market_data_is = None
         market_data_oos = None
-        if HYPERPARAM_SEARCH_STRATEGY in {"trend_following", "volatility_breakout", "orb"}:
+        if HYPERPARAM_SEARCH_STRATEGY in {
+            "trend_following",
+            "volatility_breakout",
+            "orb",
+        }:
             market_data_is = market_data.iloc[window.is_start : window.is_end]
             market_data_oos = market_data.iloc[window.oos_start : window.oos_end]
 
@@ -537,9 +549,11 @@ def _run_wfo(
         oos_values.append(oos_value)
         oos_by_param[param_key].append(oos_value)
 
-        param_str = ", ".join(
-            f"{k}={v}" for k, v in best_params.items()
-        ) if best_params else str(param_key)
+        param_str = (
+            ", ".join(f"{k}={v}" for k, v in best_params.items())
+            if best_params
+            else str(param_key)
+        )
         print(
             f"WFO window {i}/{len(windows)}: "
             f"best_is=({param_str}), "
@@ -572,7 +586,11 @@ def _run_wfo(
 
     # Run scan on full dataset with all parameters for sensitivity analysis
     scan_args_full = [price]
-    if HYPERPARAM_SEARCH_STRATEGY in {"trend_following", "volatility_breakout", "orb"}:
+    if HYPERPARAM_SEARCH_STRATEGY in {
+        "trend_following",
+        "volatility_breakout",
+        "orb",
+    }:
         scan_args_full.extend([market_data["high"], market_data["low"]])
 
     full_pf = strategy_module.run_scan(
@@ -598,7 +616,11 @@ def _run_wfo(
             best_params = {list(param_space.keys())[0]: best_param}
 
         run_args_best = [price]
-        if HYPERPARAM_SEARCH_STRATEGY in {"trend_following", "volatility_breakout", "orb"}:
+        if HYPERPARAM_SEARCH_STRATEGY in {
+            "trend_following",
+            "volatility_breakout",
+            "orb",
+        }:
             run_args_best.extend([market_data["high"], market_data["low"]])
 
         best_pf = strategy_module.run(
@@ -656,11 +678,11 @@ def main() -> None:
     friction_kwargs = broker.build_friction_kwargs(
         enable_friction=ENABLE_FRICTION_MODEL
     )
-    
+
     print(f"Optimizing strategy: {HYPERPARAM_SEARCH_STRATEGY}")
     print(f"Symbol: {symbol}, Data points: {len(price)}")
     print()
-    
+
     if WFO_ENABLED:
         _run_wfo(
             price,
