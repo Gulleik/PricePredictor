@@ -30,8 +30,13 @@ def compute_sharpe_ratio(
 
     clean_returns = _coerce_returns(returns)
     excess = clean_returns - (risk_free_rate / periods_per_year)
+
+    # Sample stdev with ddof=1 is undefined for fewer than 2 observations.
+    if len(excess) < 2:
+        return 0.0
+
     stdev = float(excess.std(ddof=1))
-    if stdev == 0.0:
+    if not np.isfinite(stdev) or stdev == 0.0:
         return 0.0
 
     mean_excess = float(excess.mean())
@@ -119,7 +124,7 @@ def compute_advanced_metrics(
     returns: pd.Series,
     *,
     periods_per_year: int = 252,
-) -> dict[str, float]:
+) -> dict[str, float | int]:
     """Compute milestone-5 advanced metrics for one return series."""
     sharpe = compute_sharpe_ratio(returns, periods_per_year=periods_per_year)
     sortino = compute_sortino_ratio(returns, periods_per_year=periods_per_year)
@@ -132,5 +137,5 @@ def compute_advanced_metrics(
         "sortino_ratio": float(sortino),
         "calmar_ratio": float(calmar),
         "max_drawdown": float(max_drawdown),
-        "max_drawdown_duration": float(max_dd_duration),
+        "max_drawdown_duration": int(max_dd_duration),
     }

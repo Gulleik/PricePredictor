@@ -6,6 +6,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from src.analysis.annualization import periods_per_year_from_freq
 from src.analysis.optuna_integration import (
     optimize_sma_parameters,
     persist_search_artifacts,
@@ -63,23 +64,6 @@ WFO_PRESET_WINDOWS = {
     "balanced": (252, 63, 63),
     "robust": (365, 90, 90),
 }
-
-
-def _periods_per_year_from_freq(freq: str) -> int:
-    normalized = freq.strip().lower()
-    if normalized.endswith("h"):
-        amount = int(normalized[:-1] or 1)
-        return max(1, int(round((24 * 365) / amount)))
-    if normalized.endswith("d"):
-        amount = int(normalized[:-1] or 1)
-        return max(1, int(round(252 / amount)))
-    return 252
-
-
-def _extract_scalar(value: Any) -> float:
-    if isinstance(value, pd.Series):
-        return float(value.iloc[0])
-    return float(value)
 
 
 def _metric_from_returns(
@@ -157,7 +141,7 @@ def _get_metric_series(pf, objective: str) -> pd.Series:
         metric_series = _metric_from_returns(
             pf.returns(),
             objective,
-            periods_per_year=_periods_per_year_from_freq(DEFAULT_TIMEFRAME),
+            periods_per_year=periods_per_year_from_freq(DEFAULT_TIMEFRAME),
         )
     else:
         raise ValueError(
@@ -296,7 +280,7 @@ def _run_single_pass(
         f"Sharpe={search_result.best_metrics['sharpe_ratio']:.4f}, "
         f"Sortino={search_result.best_metrics['sortino_ratio']:.4f}, "
         f"Calmar={search_result.best_metrics['calmar_ratio']:.4f}, "
-        f"MaxDDDur(bars)={int(search_result.best_metrics['max_drawdown_duration'])}"
+        f"MaxDDDur(bars)={search_result.best_metrics['max_drawdown_duration']}"
     )
     print()
 

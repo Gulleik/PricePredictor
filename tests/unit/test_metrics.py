@@ -22,6 +22,12 @@ def test_sharpe_ratio_returns_zero_for_flat_series() -> None:
     assert compute_sharpe_ratio(returns) == 0.0
 
 
+def test_sharpe_ratio_returns_zero_for_single_finite_observation() -> None:
+    """One finite observation should not produce NaN Sharpe ratio."""
+    returns = pd.Series([np.nan, np.inf, 0.01])
+    assert compute_sharpe_ratio(returns) == 0.0
+
+
 def test_sortino_ratio_handles_downside_only() -> None:
     """Sortino should be finite when downside returns are present."""
     returns = pd.Series([0.01, -0.02, 0.005, -0.01, 0.02])

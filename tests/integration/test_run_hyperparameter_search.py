@@ -115,7 +115,7 @@ def test_main_uses_config_values(monkeypatch, capsys) -> None:
                 "sharpe_ratio": 1.2,
                 "sortino_ratio": 1.1,
                 "calmar_ratio": 0.8,
-                "max_drawdown_duration": 4.0,
+                "max_drawdown_duration": 4,
             }
 
     def fake_optimize(

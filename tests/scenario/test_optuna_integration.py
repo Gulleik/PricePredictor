@@ -75,7 +75,7 @@ def test_optuna_optimizer_returns_best_params(monkeypatch) -> None:
     price = pd.Series(np.linspace(100, 120, num=len(idx)), index=idx)
 
     returns_by_param: dict[tuple[int, int], pd.Series] = {
-        (10, 30): pd.Series([0.01] * len(idx), index=idx),
+        (10, 30): pd.Series([0.0] * len(idx), index=idx),
         (15, 40): pd.Series([0.005, -0.001] * (len(idx) // 2), index=idx),
     }
 
@@ -114,8 +114,8 @@ def test_optuna_optimizer_returns_best_params(monkeypatch) -> None:
         max_size_array=None,
     )
 
-    assert result.best_fast == 10
-    assert result.best_slow == 30
+    assert result.best_fast == 15
+    assert result.best_slow == 40
     assert "sortino_ratio" in result.best_metrics
     assert "calmar_ratio" in result.best_metrics
 

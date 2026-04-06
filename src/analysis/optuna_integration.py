@@ -11,6 +11,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from src.analysis.annualization import periods_per_year_from_freq
 from src.models.metrics import compute_advanced_metrics
 from src.strategies.sma_crossover import run
 
@@ -23,7 +24,7 @@ class SearchResult:
     best_fast: int
     best_slow: int
     best_objective_value: float
-    best_metrics: dict[str, float]
+    best_metrics: dict[str, float | int]
 
 
 def _as_float(value: Any) -> float:
@@ -33,18 +34,6 @@ def _as_float(value: Any) -> float:
     if isinstance(value, np.ndarray):
         return float(np.asarray(value).reshape(-1)[0])
     return float(value)
-
-
-def _periods_per_year_from_freq(freq: str) -> int:
-    """Infer annualization periods from configured portfolio frequency."""
-    normalized = freq.strip().lower()
-    if normalized.endswith("h"):
-        amount = int(normalized[:-1] or 1)
-        return max(1, int(round((24 * 365) / amount)))
-    if normalized.endswith("d"):
-        amount = int(normalized[:-1] or 1)
-        return max(1, int(round(252 / amount)))
-    return 252
 
 
 def _build_sampler(sampler_name: str, seed: int, startup_trials: int) -> Any:
@@ -106,7 +95,7 @@ def optimize_sma_parameters(
             "Optuna is required for milestone 5 search. Install dependencies first."
         ) from exc
 
-    periods_per_year = _periods_per_year_from_freq(portfolio_freq)
+    periods_per_year = periods_per_year_from_freq(portfolio_freq)
     sampler = _build_sampler(sampler_name, seed, startup_trials)
 
     study = optuna.create_study(
@@ -152,7 +141,10 @@ def optimize_sma_parameters(
             )
 
         for key, value in metrics.items():
-            trial.set_user_attr(key, float(value))
+            if key == "max_drawdown_duration":
+                trial.set_user_attr(key, int(value))
+            else:
+                trial.set_user_attr(key, float(value))
         trial.set_user_attr("total_return", float(total_return))
 
         return float(objective_map[objective])
@@ -179,8 +171,8 @@ def optimize_sma_parameters(
         "sortino_ratio": float(best_trial.user_attrs.get("sortino_ratio", 0.0)),
         "calmar_ratio": float(best_trial.user_attrs.get("calmar_ratio", 0.0)),
         "max_drawdown": float(best_trial.user_attrs.get("max_drawdown", 0.0)),
-        "max_drawdown_duration": float(
-            best_trial.user_attrs.get("max_drawdown_duration", 0.0)
+        "max_drawdown_duration": int(
+            best_trial.user_attrs.get("max_drawdown_duration", 0)
         ),
         "total_return": float(best_trial.user_attrs.get("total_return", 0.0)),
     }
