@@ -76,6 +76,31 @@ def _signals(
     return entries.fillna(False), exits.fillna(False), range_high, range_low
 
 
+def _directional_signals(
+    price: pd.Series,
+    high: pd.Series,
+    low: pd.Series,
+    *,
+    range_bars: int,
+    breakout_buffer: float,
+) -> tuple[pd.Series, pd.Series, pd.Series, pd.Series, pd.Series, pd.Series]:
+    """Build separate long and short ORB signals from opening range levels."""
+    if breakout_buffer < 0:
+        raise ValueError("breakout_buffer must be >= 0")
+
+    range_high, range_low, ready = _daily_opening_range(high, low, range_bars)
+
+    upper_break = range_high * (1.0 + breakout_buffer)
+    lower_break = range_low * (1.0 - breakout_buffer)
+
+    long_entry = ((price > upper_break) & ready).fillna(False)
+    long_exit = ((price < range_low) & ready).fillna(False)
+    short_entry = ((price < lower_break) & ready).fillna(False)
+    short_exit = ((price > range_high) & ready).fillna(False)
+
+    return long_entry, long_exit, short_entry, short_exit, range_high, range_low
+
+
 def run(
     price: pd.Series,
     high: pd.Series,
@@ -94,22 +119,38 @@ def run(
     portfolio_freq: str | None = None,
 ) -> tuple[Any, pd.Series, pd.Series]:
     """Run ORB strategy backtest."""
-    entries, exits, range_high, range_low = _signals(
-        price,
-        high,
-        low,
-        range_bars=range_bars,
-        breakout_buffer=breakout_buffer,
-        allow_short=allow_short,
+    long_entries, long_exits, short_entries, short_exits, range_high, range_low = (
+        _directional_signals(
+            price,
+            high,
+            low,
+            range_bars=range_bars,
+            breakout_buffer=breakout_buffer,
+        )
     )
+
+    if not allow_short:
+        short_entries = None
+        short_exits = None
+
+    entries = long_entries
+    exits = long_exits
 
     if next_bar_execution:
         entries, exits = apply_next_bar_execution(entries, exits)
+        if short_entries is not None and short_exits is not None:
+            short_entries, short_exits = apply_next_bar_execution(
+                short_entries,
+                short_exits,
+            )
 
     safe_max_size, valid_mask = sanitize_max_size(max_size, price.index)
     if valid_mask is not None:
         entries = apply_valid_mask(entries, valid_mask)
         exits = apply_valid_mask(exits, valid_mask)
+        if short_entries is not None and short_exits is not None:
+            short_entries = apply_valid_mask(short_entries, valid_mask)
+            short_exits = apply_valid_mask(short_exits, valid_mask)
 
     portfolio_kwargs: dict[str, Any] = {
         "init_cash": init_cash,
@@ -122,6 +163,10 @@ def run(
         portfolio_kwargs["max_size"] = safe_max_size
     if position_sizes is not None:
         portfolio_kwargs["size"] = position_sizes
+
+    if short_entries is not None and short_exits is not None:
+        portfolio_kwargs["short_entries"] = short_entries
+        portfolio_kwargs["short_exits"] = short_exits
 
     pf = vbt.Portfolio.from_signals(price, entries, exits, **portfolio_kwargs)
     return pf, range_high, range_low
@@ -146,29 +191,44 @@ def run_scan(
     """Run ORB scan across opening range lengths."""
     entries_df: dict[int, pd.Series] = {}
     exits_df: dict[int, pd.Series] = {}
+    short_entries_df: dict[int, pd.Series] = {}
+    short_exits_df: dict[int, pd.Series] = {}
 
     for bars in range_bars_values:
-        entries, exits, *_ = _signals(
+        entries, exits, short_entries, short_exits, *_ = _directional_signals(
             price,
             high,
             low,
             range_bars=int(bars),
             breakout_buffer=breakout_buffer,
-            allow_short=allow_short,
         )
         entries_df[int(bars)] = entries
         exits_df[int(bars)] = exits
+        short_entries_df[int(bars)] = short_entries
+        short_exits_df[int(bars)] = short_exits
 
     entries_frame = pd.DataFrame(entries_df, index=price.index)
     exits_frame = pd.DataFrame(exits_df, index=price.index)
+    short_entries_frame = pd.DataFrame(short_entries_df, index=price.index)
+    short_exits_frame = pd.DataFrame(short_exits_df, index=price.index)
 
     if next_bar_execution:
-        entries_frame, exits_frame = apply_next_bar_execution(entries_frame, exits_frame)
+        entries_frame, exits_frame = apply_next_bar_execution(
+            entries_frame, exits_frame
+        )
+        if allow_short:
+            short_entries_frame, short_exits_frame = apply_next_bar_execution(
+                short_entries_frame,
+                short_exits_frame,
+            )
 
     safe_max_size, valid_mask = sanitize_max_size(max_size, price.index)
     if valid_mask is not None:
         entries_frame = apply_valid_mask(entries_frame, valid_mask)
         exits_frame = apply_valid_mask(exits_frame, valid_mask)
+        if allow_short:
+            short_entries_frame = apply_valid_mask(short_entries_frame, valid_mask)
+            short_exits_frame = apply_valid_mask(short_exits_frame, valid_mask)
 
     portfolio_kwargs: dict[str, Any] = {
         "init_cash": init_cash,
@@ -184,4 +244,10 @@ def run_scan(
         else:
             portfolio_kwargs["max_size"] = max_size_arr
 
-    return vbt.Portfolio.from_signals(price, entries_frame, exits_frame, **portfolio_kwargs)
+    if allow_short:
+        portfolio_kwargs["short_entries"] = short_entries_frame
+        portfolio_kwargs["short_exits"] = short_exits_frame
+
+    return vbt.Portfolio.from_signals(
+        price, entries_frame, exits_frame, **portfolio_kwargs
+    )

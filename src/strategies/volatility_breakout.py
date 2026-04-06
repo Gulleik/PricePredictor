@@ -140,7 +140,9 @@ def run_scan(
     exits_frame = pd.DataFrame(exits_df, index=price.index)
 
     if next_bar_execution:
-        entries_frame, exits_frame = apply_next_bar_execution(entries_frame, exits_frame)
+        entries_frame, exits_frame = apply_next_bar_execution(
+            entries_frame, exits_frame
+        )
 
     safe_max_size, valid_mask = sanitize_max_size(max_size, price.index)
     if valid_mask is not None:
@@ -161,4 +163,6 @@ def run_scan(
         else:
             portfolio_kwargs["max_size"] = max_size_arr
 
-    return vbt.Portfolio.from_signals(price, entries_frame, exits_frame, **portfolio_kwargs)
+    return vbt.Portfolio.from_signals(
+        price, entries_frame, exits_frame, **portfolio_kwargs
+    )

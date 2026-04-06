@@ -44,8 +44,8 @@ from src.models.risk import (
     estimate_conservative_kelly,
     generate_position_sizes,
 )
-from src.strategies.sma_crossover import run as sma_run
 from src.strategies import get_strategy_module
+from src.strategies.sma_crossover import run as sma_run
 
 
 def main() -> None:

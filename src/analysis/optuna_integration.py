@@ -6,13 +6,15 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 import pandas as pd
 
 from src.analysis.annualization import periods_per_year_from_freq
+from src.config import StrategyName
 from src.models.metrics import compute_advanced_metrics
+from src.strategies import get_strategy_module
 from src.strategies.sma_crossover import run
 
 
@@ -25,6 +27,17 @@ class SearchResult:
     best_slow: int
     best_objective_value: float
     best_metrics: dict[str, float | int]
+
+
+@dataclass(frozen=True)
+class GenericSearchResult:
+    """Generic structured output for strategy optimization runs."""
+
+    study: Any
+    best_params: dict[str, Any]
+    best_objective_value: float
+    best_metrics: dict[str, float | int]
+    strategy_name: str
 
 
 def _as_float(value: Any) -> float:
@@ -55,6 +68,183 @@ def _build_sampler(sampler_name: str, seed: int, startup_trials: int) -> Any:
         )
 
     raise ValueError(f"Unknown OPTUNA_SAMPLER: {sampler_name}. Use 'tpe' or 'random'.")
+
+
+def optimize_strategy_parameters(
+    price: pd.Series,
+    *,
+    strategy_name: StrategyName,
+    param_space: dict[str, list[Any]],
+    objective: str,
+    n_trials: int,
+    timeout_seconds: int,
+    sampler_name: str,
+    seed: int,
+    startup_trials: int,
+    study_name: str,
+    init_cash: float,
+    portfolio_freq: str,
+    next_bar_execution: bool,
+    friction_kwargs: dict[str, float],
+    max_size_array: np.ndarray | None,
+    param_constraints: Callable[[dict[str, Any]], bool] | None = None,
+    market_data: pd.DataFrame | None = None,
+) -> GenericSearchResult:
+    """Generic strategy optimizer using Optuna.
+    
+    Args:
+        price: Close price series.
+        strategy_name: Name of the strategy from StrategyName.
+        param_space: Dict mapping parameter names to lists of valid values.
+        objective: Metric to maximize ('sharpe_ratio', 'sortino_ratio', 'calmar_ratio', 'total_return').
+        n_trials: Number of Optuna trials.
+        timeout_seconds: Search timeout in seconds (0 = no limit).
+        sampler_name: 'tpe' or 'random'.
+        seed: Random seed for sampler.
+        startup_trials: Number of startup trials for TPE.
+        study_name: Optuna study name.
+        init_cash: Initial portfolio cash.
+        portfolio_freq: Portfolio frequency (e.g., '1h').
+        next_bar_execution: Whether to shift signals forward by one bar.
+        friction_kwargs: Friction model keyword arguments.
+        max_size_array: Per-bar max position size constraints.
+        param_constraints: Optional function(params_dict) -> bool for constraint validation.
+        market_data: Optional full market data (OHLC); needed by some strategies.
+        
+    Returns:
+        GenericSearchResult with best parameters and metrics.
+    """
+    if n_trials <= 0:
+        raise ValueError("OPTUNA_N_TRIALS must be positive")
+    if timeout_seconds < 0:
+        raise ValueError("OPTUNA_TIMEOUT_SECONDS must be >= 0")
+
+    try:
+        import optuna
+    except ImportError as exc:  # pragma: no cover - guarded runtime dependency
+        raise RuntimeError(
+            "Optuna is required for milestone 5 search. Install dependencies first."
+        ) from exc
+
+    strategy_module = get_strategy_module(strategy_name)
+    periods_per_year = periods_per_year_from_freq(portfolio_freq)
+    sampler = _build_sampler(sampler_name, seed, startup_trials)
+
+    study = optuna.create_study(
+        direction="maximize",
+        study_name=study_name,
+        sampler=sampler,
+    )
+
+    def _objective(trial: Any) -> float:
+        # Suggest parameters based on param_space
+        trial_params = {}
+        for param_name, values in param_space.items():
+            if isinstance(values[0], int):
+                trial_params[param_name] = int(
+                    trial.suggest_categorical(param_name, values)
+                )
+            else:
+                trial_params[param_name] = trial.suggest_categorical(
+                    param_name, values
+                )
+
+        # Apply constraints if provided
+        if param_constraints is not None and not param_constraints(trial_params):
+            trial.set_user_attr("invalid_combo", True)
+            return float("-inf")
+
+        # Call strategy run() with trial parameters
+        try:
+            # Build arguments based on strategy
+            run_args = [price]
+            if strategy_name in {"trend_following", "volatility_breakout", "orb"}:
+                if market_data is None:
+                    raise ValueError(
+                        f"Strategy '{strategy_name}' requires market_data (OHLC)"
+                    )
+                run_args.extend([market_data["high"], market_data["low"]])
+
+            result = strategy_module.run(
+                *run_args,
+                init_cash=init_cash,
+                next_bar_execution=next_bar_execution,
+                max_size=max_size_array,
+                portfolio_freq=portfolio_freq,
+                **friction_kwargs,
+                **trial_params,
+            )
+            # Different strategies return different tuple lengths
+            pf = result[0] if isinstance(result, tuple) else result
+        except Exception as exc:
+            trial.set_user_attr("error", str(exc))
+            return float("-inf")
+
+        # Compute metrics
+        returns = pf.returns()
+        metrics = compute_advanced_metrics(returns, periods_per_year=periods_per_year)
+        total_return = _as_float(pf.total_return())
+
+        objective_map = {
+            "sharpe_ratio": metrics["sharpe_ratio"],
+            "sortino_ratio": metrics["sortino_ratio"],
+            "calmar_ratio": metrics["calmar_ratio"],
+            "total_return": total_return,
+        }
+        if objective not in objective_map:
+            raise ValueError(
+                f"Unknown objective: {objective}. "
+                "Use 'sharpe_ratio', 'total_return', 'sortino_ratio', "
+                "or 'calmar_ratio'."
+            )
+
+        # Store metrics as trial attributes
+        for key, value in metrics.items():
+            if key == "max_drawdown_duration":
+                trial.set_user_attr(key, int(value))
+            else:
+                trial.set_user_attr(key, float(value))
+        trial.set_user_attr("total_return", float(total_return))
+
+        return float(objective_map[objective])
+
+    study.optimize(_objective, n_trials=n_trials, timeout=timeout_seconds or None)
+
+    # Filter valid trials
+    valid_trials = [
+        trial
+        for trial in study.trials
+        if not bool(trial.user_attrs.get("invalid_combo", False))
+        and not trial.user_attrs.get("error")
+        and trial.value is not None
+        and np.isfinite(float(trial.value))
+    ]
+    if not valid_trials:
+        raise ValueError(
+            "Optuna search produced no valid trials. "
+            "Increase OPTUNA_N_TRIALS, relax constraints, or expand parameter ranges."
+        )
+
+    best_trial = max(valid_trials, key=lambda trial: float(trial.value))
+    best_metrics = {
+        "sharpe_ratio": float(best_trial.user_attrs.get("sharpe_ratio", 0.0)),
+        "sortino_ratio": float(best_trial.user_attrs.get("sortino_ratio", 0.0)),
+        "calmar_ratio": float(best_trial.user_attrs.get("calmar_ratio", 0.0)),
+        "max_drawdown": float(best_trial.user_attrs.get("max_drawdown", 0.0)),
+        "max_drawdown_duration": int(
+            best_trial.user_attrs.get("max_drawdown_duration", 0)
+        ),
+        "total_return": float(best_trial.user_attrs.get("total_return", 0.0)),
+    }
+
+    return GenericSearchResult(
+        study=study,
+        best_params=dict(best_trial.params),
+        best_objective_value=float(best_trial.value),
+        best_metrics=best_metrics,
+        strategy_name=strategy_name,
+    )
+
 
 
 def optimize_sma_parameters(
@@ -187,7 +377,7 @@ def optimize_sma_parameters(
 
 
 def persist_search_artifacts(
-    search_result: SearchResult,
+    search_result: SearchResult | GenericSearchResult,
     *,
     output_dir: Path,
     objective: str,
@@ -203,11 +393,19 @@ def persist_search_artifacts(
     trial_df = search_result.study.trials_dataframe()
     trial_df.to_csv(trials_path, index=False)
 
+    # Handle both SearchResult (SMA-specific) and GenericSearchResult
+    if isinstance(search_result, GenericSearchResult):
+        best_params_summary = search_result.best_params
+    else:
+        best_params_summary = {
+            "fast": search_result.best_fast,
+            "slow": search_result.best_slow,
+        }
+
     summary = {
         "timestamp_utc": timestamp,
         "objective": objective,
-        "best_fast": search_result.best_fast,
-        "best_slow": search_result.best_slow,
+        "best_params": best_params_summary,
         "best_objective_value": search_result.best_objective_value,
         "best_metrics": search_result.best_metrics,
         "config": config_snapshot,

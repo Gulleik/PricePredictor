@@ -1,11 +1,11 @@
 """Mean reversion strategy configuration."""
 
 # Single-run defaults
-RSI_PERIOD = 14
-OVERSOLD = 30.0
-OVERBOUGHT = 70.0
+RSI_PERIOD = 8
+OVERSOLD = 20.0
+OVERBOUGHT = 80.0
 BB_WINDOW = 20
-BB_STD = 2.0
+BB_STD = 1.5
 USE_BOLLINGER = True
 VOL_LOOKBACK = 24
 VOL_MAX_ANNUALIZED = 1.5
