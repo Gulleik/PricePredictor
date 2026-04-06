@@ -314,3 +314,83 @@ def test_main_runs_wfo_auto_mode(monkeypatch, capsys) -> None:
 
     out = capsys.readouterr().out
     assert "WFO config: mode=auto" in out
+
+
+def test_main_raises_for_unknown_wfo_mode(monkeypatch) -> None:
+    """main should fail fast on unsupported WFO mode values."""
+    idx_price = pd.date_range("2024-01-01", periods=20, freq="D", tz="UTC")
+
+    monkeypatch.setattr(run_hyperparameter_search, "WFO_ENABLED", True)
+    monkeypatch.setattr(run_hyperparameter_search, "WFO_MODE", "invalid")
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "get_default_date_range",
+        lambda: ("2024-01-01T00:00:00+00:00", "2025-01-01T00:00:00+00:00"),
+    )
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "load_crypto_bars",
+        lambda *args, **kwargs: pd.DataFrame(
+            {"close": range(100, 120)},
+            index=idx_price,
+        ),
+    )
+
+    with pytest.raises(ValueError, match="Unknown WFO_MODE"):
+        run_hyperparameter_search.main()
+
+
+def test_main_raises_for_unknown_wfo_preset(monkeypatch) -> None:
+    """Preset mode should fail fast when configured preset name is invalid."""
+    idx_price = pd.date_range("2024-01-01", periods=40, freq="D", tz="UTC")
+
+    monkeypatch.setattr(run_hyperparameter_search, "WFO_ENABLED", True)
+    monkeypatch.setattr(run_hyperparameter_search, "WFO_MODE", "preset")
+    monkeypatch.setattr(run_hyperparameter_search, "WFO_PRESET", "invalid")
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "get_default_date_range",
+        lambda: ("2024-01-01T00:00:00+00:00", "2025-01-01T00:00:00+00:00"),
+    )
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "load_crypto_bars",
+        lambda *args, **kwargs: pd.DataFrame(
+            {"close": range(100, 140)},
+            index=idx_price,
+        ),
+    )
+
+    with pytest.raises(ValueError, match="Unknown WFO_PRESET"):
+        run_hyperparameter_search.main()
+
+
+def test_main_raises_when_wfo_generates_no_windows(monkeypatch) -> None:
+    """WFO should raise when generated window list is empty."""
+    idx_price = pd.date_range("2024-01-01", periods=40, freq="D", tz="UTC")
+
+    monkeypatch.setattr(run_hyperparameter_search, "WFO_ENABLED", True)
+    monkeypatch.setattr(run_hyperparameter_search, "WFO_MODE", "manual")
+    monkeypatch.setattr(run_hyperparameter_search, "WFO_IS_WINDOW_BARS", 20)
+    monkeypatch.setattr(run_hyperparameter_search, "WFO_OOS_FRACTION", 0.5)
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "get_default_date_range",
+        lambda: ("2024-01-01T00:00:00+00:00", "2025-01-01T00:00:00+00:00"),
+    )
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "load_crypto_bars",
+        lambda *args, **kwargs: pd.DataFrame(
+            {"close": range(100, 140)},
+            index=idx_price,
+        ),
+    )
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "generate_wfo_windows",
+        lambda *args, **kwargs: [],
+    )
+
+    with pytest.raises(ValueError, match="No valid WFO windows generated"):
+        run_hyperparameter_search.main()

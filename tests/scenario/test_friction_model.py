@@ -224,3 +224,19 @@ class TestFrictionModel:
         )
 
         assert pf is not None
+
+    def test_non_positive_max_size_does_not_crash(self) -> None:
+        """Test that non-positive max_size values are handled safely."""
+        price = pd.Series(range(100, 130), dtype=float)
+        max_size = np.array([0.0, -1.0] + [0.1] * (len(price) - 2))
+
+        pf, _, _ = run(
+            price,
+            fast=2,
+            slow=10,
+            init_cash=10000.0,
+            next_bar_execution=True,
+            max_size=max_size,
+        )
+
+        assert pf is not None

@@ -12,17 +12,17 @@ HYPERPARAM_SYMBOL = DEFAULT_SYMBOLS[0]
 
 # Default date range settings
 DATE_REFRESH_CADENCE: Literal["month", "week", "day"] = "week"
-DEFAULT_LOOKBACK_DAYS = 365
+DEFAULT_LOOKBACK_DAYS = 365  # 1 year of daily data
 
 # Default timeframe for bars
-DEFAULT_TIMEFRAME = "1D"
+DEFAULT_TIMEFRAME = "1h"
 
 # Default initial capital for backtests
 DEFAULT_INIT_CASH = 10_000.0
 
 # Single-run SMA defaults
-BACKTEST_FAST_WINDOW = 5
-BACKTEST_SLOW_WINDOW = 15
+BACKTEST_FAST_WINDOW = 10
+BACKTEST_SLOW_WINDOW = 25
 BACKTEST_RENDER_CHART = False
 
 # Hyperparameter search defaults

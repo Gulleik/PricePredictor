@@ -64,7 +64,7 @@ def test_load_crypto_bars_uses_cache_when_available(monkeypatch, tmp_path) -> No
         _parse_datetime("2024-01-03"),
         _parse_timeframe("1d"),
     )
-    expected.to_parquet(cache_path)
+    data_module._save_to_cache(cache_path, expected)
 
     class _UnexpectedClient:
         def __init__(self, *args, **kwargs) -> None:

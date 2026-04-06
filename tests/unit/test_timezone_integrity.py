@@ -55,7 +55,7 @@ def test_load_crypto_bars_rejects_naive_cache_index(monkeypatch, tmp_path) -> No
     )
 
     naive_index = pd.date_range("2024-01-01", periods=2, freq="D")
-    pd.DataFrame(
+    naive_cache_df = pd.DataFrame(
         {
             "open": [99.0, 100.0],
             "high": [101.0, 102.0],
@@ -64,7 +64,8 @@ def test_load_crypto_bars_rejects_naive_cache_index(monkeypatch, tmp_path) -> No
             "volume": [10.0, 12.0],
         },
         index=naive_index,
-    ).to_parquet(cache_path)
+    )
+    data_module._save_to_cache(cache_path, naive_cache_df)
 
     with pytest.raises(ValueError, match="timezone-aware"):
         data_module.load_crypto_bars("BTC/USD", "2024-01-01", "2024-01-03")
@@ -100,7 +101,7 @@ def test_load_crypto_bars_cache_path_skips_duplicate_validation(
     )
 
     utc_index = pd.date_range("2024-01-01", periods=2, freq="D", tz="UTC")
-    pd.DataFrame(
+    utc_cache_df = pd.DataFrame(
         {
             "open": [99.0, 100.0],
             "high": [101.0, 102.0],
@@ -109,7 +110,8 @@ def test_load_crypto_bars_cache_path_skips_duplicate_validation(
             "volume": [10.0, 12.0],
         },
         index=utc_index,
-    ).to_parquet(cache_path)
+    )
+    data_module._save_to_cache(cache_path, utc_cache_df)
 
     direct_validate_calls = {"count": 0}
     audit_calls = {"count": 0}

@@ -10,6 +10,46 @@ import vectorbt as vbt
 from src.config import DEFAULT_TIMEFRAME
 
 
+def _sanitize_max_size(
+    max_size: Any,
+    price_index: pd.Index,
+) -> tuple[Any | None, pd.Series | None]:
+    """Return max_size safe for VectorBT and validity mask for tradable bars."""
+    if max_size is None:
+        return None, None
+
+    arr = np.asarray(max_size, dtype=float)
+    if arr.ndim == 0:
+        value = float(arr)
+        if not np.isfinite(value) or value <= 0:
+            mask = pd.Series(False, index=price_index)
+            return None, mask
+        return value, None
+
+    if arr.ndim != 1:
+        return max_size, None
+
+    if len(arr) != len(price_index):
+        raise ValueError(
+            "max_size length must match price length when provided as 1D array"
+        )
+
+    valid = np.isfinite(arr) & (arr > 0)
+    valid_mask = pd.Series(valid, index=price_index)
+    safe_arr = np.where(valid, arr, np.finfo(float).tiny)
+    return safe_arr, valid_mask
+
+
+def _apply_valid_mask(signals: Any, valid_mask: pd.Series) -> Any:
+    """Apply row-wise tradability mask to Series/DataFrame boolean signals."""
+    if isinstance(signals, pd.Series):
+        return signals & valid_mask
+    if isinstance(signals, pd.DataFrame):
+        mask_2d = np.broadcast_to(valid_mask.to_numpy().reshape(-1, 1), signals.shape)
+        return signals.where(mask_2d, False)
+    return signals
+
+
 def run(
     price: pd.Series,
     fast: int = 10,
@@ -53,14 +93,19 @@ def run(
         entries = entries.vbt.fshift(1).fillna(False).astype(bool)
         exits = exits.vbt.fshift(1).fillna(False).astype(bool)
 
+    safe_max_size, valid_mask = _sanitize_max_size(max_size, price.index)
+    if valid_mask is not None:
+        entries = _apply_valid_mask(entries, valid_mask)
+        exits = _apply_valid_mask(exits, valid_mask)
+
     portfolio_kwargs: dict[str, Any] = {
         "init_cash": init_cash,
         "fees": fees,
         "fixed_fees": fixed_fees,
         "slippage": slippage,
     }
-    if max_size is not None:
-        portfolio_kwargs["max_size"] = max_size
+    if safe_max_size is not None:
+        portfolio_kwargs["max_size"] = safe_max_size
     if position_sizes is not None:
         portfolio_kwargs["size"] = position_sizes
 
@@ -120,23 +165,33 @@ def run_scan(
         entries = entries.vbt.fshift(1).fillna(False).astype(bool)
         exits = exits.vbt.fshift(1).fillna(False).astype(bool)
 
-    broadcast_max_size = max_size
-    if max_size is not None:
-        max_size_arr = np.asarray(max_size)
+    safe_max_size, valid_mask = _sanitize_max_size(max_size, price.index)
+    if valid_mask is not None:
+        entries = _apply_valid_mask(entries, valid_mask)
+        exits = _apply_valid_mask(exits, valid_mask)
+
+    broadcast_max_size = safe_max_size
+    if safe_max_size is not None:
+        max_size_arr = np.asarray(safe_max_size)
         # For parameter grids, VectorBT expects a shape that can broadcast
         # against (n_rows, n_cols). Convert (n_rows,) -> (n_rows, 1).
         if max_size_arr.ndim == 1:
             broadcast_max_size = max_size_arr.reshape(-1, 1)
 
+    portfolio_kwargs: dict[str, Any] = {
+        "init_cash": init_cash,
+        "fees": fees,
+        "fixed_fees": fixed_fees,
+        "slippage": slippage,
+        "freq": portfolio_freq or DEFAULT_TIMEFRAME,
+    }
+    if broadcast_max_size is not None:
+        portfolio_kwargs["max_size"] = broadcast_max_size
+
     pf = vbt.Portfolio.from_signals(
         price,
         entries,
         exits,
-        init_cash=init_cash,
-        fees=fees,
-        fixed_fees=fixed_fees,
-        slippage=slippage,
-        max_size=broadcast_max_size,
-        freq=portfolio_freq or DEFAULT_TIMEFRAME,
+        **portfolio_kwargs,
     )
     return pf
