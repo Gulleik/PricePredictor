@@ -1,4 +1,4 @@
-"""Run hyperparameter search for SMA crossover and report best parameters."""
+"""Run hyperparameter search and report best parameters for configured strategy."""
 
 from collections import defaultdict
 from typing import Any
@@ -8,7 +8,7 @@ import pandas as pd
 
 from src.analysis.annualization import periods_per_year_from_freq
 from src.analysis.optuna_integration import (
-    optimize_sma_parameters,
+    optimize_strategy_parameters,
     persist_search_artifacts,
 )
 from src.analysis.sensitivity import build_sensitivity_matrix, save_sensitivity_heatmap
@@ -21,7 +21,7 @@ from src.config import (
     DEFAULT_TIMEFRAME,
     ENABLE_FRICTION_MODEL,
     ENABLE_NEXT_BAR_EXECUTION,
-    FAST_WINDOWS,
+    HYPERPARAM_SEARCH_STRATEGY,
     HYPERPARAM_SYMBOL,
     HYPERPARAM_TOP_N,
     MAX_VOLUME_PARTICIPATION,
@@ -38,7 +38,6 @@ from src.config import (
     SCAN_OBJECTIVE,
     SENSITIVITY_HEATMAP_OUTPUT_PATH,
     SENSITIVITY_MATRIX_OUTPUT_PATH,
-    SLOW_WINDOWS,
     WFO_ENABLED,
     WFO_IS_WINDOW_BARS,
     WFO_MODE,
@@ -47,12 +46,31 @@ from src.config import (
     WFO_PRESET,
     WFO_STEP_BARS,
 )
+from src.config import (
+    MEAN_REVERSION_BB_STD_VALUES,
+    MEAN_REVERSION_BB_WINDOW_VALUES,
+    MEAN_REVERSION_OVERBOUGHT_VALUES,
+    MEAN_REVERSION_OVERSOLD_VALUES,
+    MEAN_REVERSION_RSI_PERIOD_VALUES,
+    MEAN_REVERSION_VOL_MAX_VALUES,
+    ORB_BREAKOUT_BUFFER_VALUES,
+    ORB_RANGE_BARS_VALUES,
+    TREND_ATR_STOP_MULTIPLES,
+    TREND_ATR_WINDOWS,
+    TREND_EMA_FAST_WINDOWS,
+    TREND_EMA_SLOW_WINDOWS,
+    VOL_BREAKOUT_ATR_MIN_VALUES,
+    VOL_BREAKOUT_ATR_WINDOWS,
+    VOL_BREAKOUT_DONCHIAN_WINDOWS,
+    FAST_WINDOWS,
+    SLOW_WINDOWS,
+)
 from src.data import get_close_price_series, load_crypto_bars
 from src.date_range import get_default_date_range
 from src.models.broker import BrokerModel
 from src.models.metrics import compute_advanced_metrics
 from src.models.regime import classify_regimes
-from src.strategies.sma_crossover import run, run_scan
+from src.strategies import get_strategy_module
 
 OBJECTIVE_ACCESSORS = {
     "sharpe_ratio": "sharpe_ratio",
@@ -64,6 +82,79 @@ WFO_PRESET_WINDOWS = {
     "balanced": (252, 63, 63),
     "robust": (365, 90, 90),
 }
+
+
+def _build_param_space_and_constraints(
+    strategy_name: str,
+) -> tuple[dict[str, list[Any]], Any | None]:
+    """Build parameter space dict and constraint function for a strategy."""
+    if strategy_name == "sma_crossover":
+        return (
+            {
+                "fast": FAST_WINDOWS,
+                "slow": SLOW_WINDOWS,
+            },
+            lambda p: p["fast"] < p["slow"],
+        )
+    elif strategy_name == "mean_reversion":
+        return (
+            {
+                "rsi_period": MEAN_REVERSION_RSI_PERIOD_VALUES,
+                "oversold": MEAN_REVERSION_OVERSOLD_VALUES,
+                "overbought": MEAN_REVERSION_OVERBOUGHT_VALUES,
+                "bb_window": MEAN_REVERSION_BB_WINDOW_VALUES,
+                "bb_std": MEAN_REVERSION_BB_STD_VALUES,
+                "vol_max_annualized": MEAN_REVERSION_VOL_MAX_VALUES,
+            },
+            None,  # No constraints
+        )
+    elif strategy_name == "trend_following":
+        return (
+            {
+                "fast_window": TREND_EMA_FAST_WINDOWS,
+                "slow_window": TREND_EMA_SLOW_WINDOWS,
+                "atr_window": TREND_ATR_WINDOWS,
+                "atr_stop_multiple": TREND_ATR_STOP_MULTIPLES,
+            },
+            lambda p: p["fast_window"] < p["slow_window"],
+        )
+    elif strategy_name == "volatility_breakout":
+        return (
+            {
+                "donchian_window": VOL_BREAKOUT_DONCHIAN_WINDOWS,
+                "atr_window": VOL_BREAKOUT_ATR_WINDOWS,
+                "atr_min_fraction": VOL_BREAKOUT_ATR_MIN_VALUES,
+            },
+            None,
+        )
+    elif strategy_name == "orb":
+        return (
+            {
+                "range_bars": ORB_RANGE_BARS_VALUES,
+                "breakout_buffer": ORB_BREAKOUT_BUFFER_VALUES,
+            },
+            None,
+        )
+    else:
+        raise ValueError(f"Unknown strategy: {strategy_name}")
+
+
+def _build_optuna_config_snapshot() -> dict[str, Any]:
+    return {
+        "strategy": HYPERPARAM_SEARCH_STRATEGY,
+        "symbol": HYPERPARAM_SYMBOL,
+        "timeframe": DEFAULT_TIMEFRAME,
+        "scan_objective": SCAN_OBJECTIVE,
+        "optuna_sampler": OPTUNA_SAMPLER,
+        "optuna_n_trials": OPTUNA_N_TRIALS,
+        "optuna_timeout_seconds": OPTUNA_TIMEOUT_SECONDS,
+        "optuna_seed": OPTUNA_SEED,
+        "optuna_startup_trials": OPTUNA_STARTUP_TRIALS,
+        "optuna_study_name": OPTUNA_STUDY_NAME,
+        "wfo_enabled": WFO_ENABLED,
+        "enable_next_bar_execution": ENABLE_NEXT_BAR_EXECUTION,
+        "enable_friction_model": ENABLE_FRICTION_MODEL,
+    }
 
 
 def _metric_from_returns(
@@ -97,35 +188,27 @@ def _metric_from_returns(
     return metric_series
 
 
-def _build_optuna_config_snapshot() -> dict[str, Any]:
-    return {
-        "symbol": HYPERPARAM_SYMBOL,
-        "timeframe": DEFAULT_TIMEFRAME,
-        "scan_objective": SCAN_OBJECTIVE,
-        "fast_windows": FAST_WINDOWS,
-        "slow_windows": SLOW_WINDOWS,
-        "optuna_sampler": OPTUNA_SAMPLER,
-        "optuna_n_trials": OPTUNA_N_TRIALS,
-        "optuna_timeout_seconds": OPTUNA_TIMEOUT_SECONDS,
-        "optuna_seed": OPTUNA_SEED,
-        "optuna_startup_trials": OPTUNA_STARTUP_TRIALS,
-        "optuna_study_name": OPTUNA_STUDY_NAME,
-        "wfo_enabled": WFO_ENABLED,
-        "enable_next_bar_execution": ENABLE_NEXT_BAR_EXECUTION,
-        "enable_friction_model": ENABLE_FRICTION_MODEL,
-    }
-
-
 def _trial_metric_series(study: Any) -> pd.Series:
-    values: dict[tuple[int, int], float] = {}
+    """Extract best metric per parameter combination from Optuna study."""
+    values: dict[tuple | str, float] = {}
     for trial in study.trials:
-        fast = trial.params.get("fast")
-        slow = trial.params.get("slow")
-        if fast is None or slow is None or trial.value is None:
+        if trial.value is None or not np.isfinite(float(trial.value)):
             continue
         if trial.user_attrs.get("invalid_combo", False):
             continue
-        key = (int(fast), int(slow))
+
+        # Create a hashable key from parameters
+        params = trial.params
+        if len(params) == 2 and "fast" in params and "slow" in params:
+            # SMA-style: use tuple
+            key = (int(params["fast"]), int(params["slow"]))
+        elif len(params) == 1:
+            # Single parameter
+            key = next(iter(params.values()))
+        else:
+            # Multiple parameters: convert to tuple of sorted items
+            key = tuple(sorted(params.items()))
+
         score = float(trial.value)
         existing = values.get(key)
         if existing is None or score > existing:
@@ -154,15 +237,40 @@ def _get_metric_series(pf, objective: str) -> pd.Series:
     return metric_series
 
 
-def _print_top_combinations(metric_series: pd.Series, objective: str) -> None:
+def _print_top_combinations(
+    search_result: Any,
+    objective: str,
+) -> None:
+    """Print top N parameter combinations from optimization result."""
     top_n = HYPERPARAM_TOP_N
+    metric_series = _trial_metric_series(search_result.study)
     top_cols = metric_series.nlargest(top_n)
     print(f"Top {top_n} combinations:")
-    for (fast, slow), val in top_cols.items():
-        print(f"  fast={fast}, slow={slow}: {objective}={val:.4f}")
+    for params, val in top_cols.items():
+        if isinstance(params, tuple) and len(params) == 2 and isinstance(params[0], int):
+            # SMA-style: (fast, slow) - both integers
+            fast, slow = params
+            print(f"  fast={fast}, slow={slow}: {objective}={val:.4f}")
+        elif isinstance(params, tuple) and params and isinstance(params[0], tuple):
+            # Multi-param: tuple of (key, value) pairs from sorted items
+            param_str = ", ".join(f"{k}={v}" for k, v in params)
+            print(f"  {param_str}: {objective}={val:.4f}")
+        else:
+            # Fallback for other formats (single param, etc.)
+            print(f"  {params}: {objective}={val:.4f}")
 
 
-def _emit_sensitivity_outputs(metric_series: pd.Series, objective: str) -> None:
+def _emit_sensitivity_outputs(
+    search_result: Any,
+    objective: str,
+    strategy_name: str,
+) -> None:
+    """Emit sensitivity matrix and heatmap if strategy supports it (i.e., SMA)."""
+    if strategy_name != "sma_crossover":
+        # Sensitivity heatmap is SMA-specific (2D parameter space)
+        return
+
+    metric_series = _trial_metric_series(search_result.study)
     matrix = build_sensitivity_matrix(
         metric_series,
         fast_windows=FAST_WINDOWS,
@@ -243,37 +351,43 @@ def _resolve_wfo_windows(n_bars: int) -> tuple[int, int, int]:
 
 def _run_single_pass(
     price: pd.Series,
+    market_data: pd.DataFrame,
     *,
     friction_kwargs: dict,
     max_size_array: np.ndarray | None,
 ) -> None:
-    search_result = optimize_sma_parameters(
+    """Run single-pass hyperparameter optimization."""
+    strategy_module = get_strategy_module(HYPERPARAM_SEARCH_STRATEGY)
+    param_space, param_constraints = _build_param_space_and_constraints(
+        HYPERPARAM_SEARCH_STRATEGY
+    )
+    
+    study_name = f"{OPTUNA_STUDY_NAME}_{HYPERPARAM_SEARCH_STRATEGY}"
+    search_result = optimize_strategy_parameters(
         price,
-        fast_windows=FAST_WINDOWS,
-        slow_windows=SLOW_WINDOWS,
+        strategy_name=HYPERPARAM_SEARCH_STRATEGY,
+        param_space=param_space,
         objective=SCAN_OBJECTIVE,
         n_trials=OPTUNA_N_TRIALS,
         timeout_seconds=OPTUNA_TIMEOUT_SECONDS,
         sampler_name=OPTUNA_SAMPLER,
         seed=OPTUNA_SEED,
         startup_trials=OPTUNA_STARTUP_TRIALS,
-        study_name=OPTUNA_STUDY_NAME,
+        study_name=study_name,
         init_cash=DEFAULT_INIT_CASH,
         portfolio_freq=DEFAULT_TIMEFRAME,
         next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
         friction_kwargs=friction_kwargs,
         max_size_array=max_size_array,
+        param_constraints=param_constraints,
+        market_data=market_data,
     )
 
-    best_fast = search_result.best_fast
-    best_slow = search_result.best_slow
-    best_value = search_result.best_objective_value
-
+    best_params = search_result.best_params
+    params_str = ", ".join(f"{k}={v}" for k, v in sorted(best_params.items()))
     print(f"Hyperparameter search ({SCAN_OBJECTIVE})")
     print(
-        "  Best: "
-        f"fast={best_fast}, slow={best_slow} -> "
-        f"{SCAN_OBJECTIVE}={best_value:.4f}"
+        f"  Best: {params_str} -> {SCAN_OBJECTIVE}={search_result.best_objective_value:.4f}"
     )
     print(
         "  Metrics: "
@@ -284,25 +398,32 @@ def _run_single_pass(
     )
     print()
 
-    best_pf, _, _ = run(
-        price,
-        fast=best_fast,
-        slow=best_slow,
+    # Run best parameters on full dataset
+    run_args = [price]
+    if HYPERPARAM_SEARCH_STRATEGY in {"trend_following", "volatility_breakout", "orb"}:
+        run_args.extend([market_data["high"], market_data["low"]])
+
+    best_pf = strategy_module.run(
+        *run_args,
         init_cash=DEFAULT_INIT_CASH,
         next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
         max_size=max_size_array,
         portfolio_freq=DEFAULT_TIMEFRAME,
         **friction_kwargs,
+        **best_params,
     )
+    if isinstance(best_pf, tuple):
+        best_pf = best_pf[0]
 
     print("Best parameter stats:")
     print(best_pf.stats())
     print()
 
-    metric_series = _trial_metric_series(search_result.study)
-    if not metric_series.empty:
-        _print_top_combinations(metric_series, SCAN_OBJECTIVE)
-        _emit_sensitivity_outputs(metric_series, SCAN_OBJECTIVE)
+    # Print top combinations
+    _print_top_combinations(search_result, SCAN_OBJECTIVE)
+
+    # Emit sensitivity outputs (SMA-specific)
+    _emit_sensitivity_outputs(search_result, SCAN_OBJECTIVE, HYPERPARAM_SEARCH_STRATEGY)
 
     trials_path, summary_path = persist_search_artifacts(
         search_result,
@@ -319,10 +440,17 @@ def _run_single_pass(
 
 def _run_wfo(
     price: pd.Series,
+    market_data: pd.DataFrame,
     *,
     friction_kwargs: dict,
     max_size_array: np.ndarray | None,
 ) -> None:
+    """Run walk-forward optimization."""
+    strategy_module = get_strategy_module(HYPERPARAM_SEARCH_STRATEGY)
+    param_space, param_constraints = _build_param_space_and_constraints(
+        HYPERPARAM_SEARCH_STRATEGY
+    )
+    
     is_window_bars, oos_window_bars, step_bars = _resolve_wfo_windows(len(price))
 
     print(
@@ -342,7 +470,7 @@ def _run_wfo(
             "WFO window sizes for current data length."
         )
 
-    oos_by_param: dict[tuple[int, int], list[float]] = defaultdict(list)
+    oos_by_param: dict[tuple | str, list[float]] = defaultdict(list)
     oos_values: list[float] = []
 
     for i, window in enumerate(windows, start=1):
@@ -355,81 +483,152 @@ def _run_wfo(
             max_size_is = max_size_array[window.is_start : window.is_end]
             max_size_oos = max_size_array[window.oos_start : window.oos_end]
 
-        pf_is = run_scan(
-            price_is,
-            fast_windows=FAST_WINDOWS,
-            slow_windows=SLOW_WINDOWS,
+        # Slice market data for this window if needed
+        market_data_is = None
+        market_data_oos = None
+        if HYPERPARAM_SEARCH_STRATEGY in {"trend_following", "volatility_breakout", "orb"}:
+            market_data_is = market_data.iloc[window.is_start : window.is_end]
+            market_data_oos = market_data.iloc[window.oos_start : window.oos_end]
+
+        # Run in-sample scan with all parameter combinations
+        scan_args_is = [price_is]
+        if market_data_is is not None:
+            scan_args_is.extend([market_data_is["high"], market_data_is["low"]])
+
+        pf_is = strategy_module.run_scan(
+            *scan_args_is,
             init_cash=DEFAULT_INIT_CASH,
             next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
             **friction_kwargs,
             max_size=max_size_is,
+            **{k: v for k, v in param_space.items()},
         )
         is_metric = _get_metric_series(pf_is, SCAN_OBJECTIVE)
         best_col = is_metric.idxmax()
-        best_fast, best_slow = best_col
 
-        pf_oos = run_scan(
-            price_oos,
-            fast_windows=[int(best_fast)],
-            slow_windows=[int(best_slow)],
+        # For SMA, best_col is a tuple (fast, slow)
+        # For other strategies, it may be different
+        best_params = {}
+        if isinstance(best_col, tuple):
+            # Multi-param strategy (SMA, trend_following)
+            param_names = list(param_space.keys())
+            for j, param_name in enumerate(param_names):
+                best_params[param_name] = best_col[j]
+            param_key = best_col
+        else:
+            # Single param (shouldn't happen in 2+ param strategies)
+            param_key = best_col
+
+        # Run out-of-sample with best in-sample parameters
+        scan_args_oos = [price_oos]
+        if market_data_oos is not None:
+            scan_args_oos.extend([market_data_oos["high"], market_data_oos["low"]])
+
+        pf_oos = strategy_module.run_scan(
+            *scan_args_oos,
             init_cash=DEFAULT_INIT_CASH,
             next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
             **friction_kwargs,
             max_size=max_size_oos,
+            **{k: [best_params.get(k, v[0])] for k, v in param_space.items()},
         )
         oos_metric_series = _get_metric_series(pf_oos, WFO_OOS_METRIC)
         oos_value = float(oos_metric_series.iloc[0])
         oos_values.append(oos_value)
-        oos_by_param[(int(best_fast), int(best_slow))].append(oos_value)
+        oos_by_param[param_key].append(oos_value)
 
+        param_str = ", ".join(
+            f"{k}={v}" for k, v in best_params.items()
+        ) if best_params else str(param_key)
         print(
             f"WFO window {i}/{len(windows)}: "
-            f"best_is=({best_fast},{best_slow}), "
+            f"best_is=({param_str}), "
             f"oos_{WFO_OOS_METRIC}={oos_value:.4f}"
         )
 
-    grouped_summary = {
-        key: float(np.mean(values)) for key, values in oos_by_param.items()
-    }
-    best_param = max(grouped_summary, key=grouped_summary.get)
-    best_mean_oos = grouped_summary[best_param]
+    # Determine best parameter combination across windows
+    if oos_by_param:
+        grouped_summary = {
+            key: float(np.mean(values)) for key, values in oos_by_param.items()
+        }
+        best_param = max(grouped_summary, key=grouped_summary.get)
+        best_mean_oos = grouped_summary[best_param]
 
-    print()
-    print("Walk-forward optimization summary")
-    print(
-        "  Best OOS mean: "
-        f"fast={best_param[0]}, slow={best_param[1]} -> "
-        f"mean_{WFO_OOS_METRIC}={best_mean_oos:.4f}"
-    )
+        print()
+        print("Walk-forward optimization summary")
+        print(
+            "  Best OOS mean: "
+            f"{best_param} -> "
+            f"mean_{WFO_OOS_METRIC}={best_mean_oos:.4f}"
+        )
+    else:
+        best_param = None
+        best_mean_oos = None
+
     print(
         f"  Aggregate OOS {WFO_OOS_METRIC} across windows: "
         f"{float(np.mean(oos_values)):.4f}"
     )
 
-    full_pf = run_scan(
-        price,
-        fast_windows=FAST_WINDOWS,
-        slow_windows=SLOW_WINDOWS,
+    # Run scan on full dataset with all parameters for sensitivity analysis
+    scan_args_full = [price]
+    if HYPERPARAM_SEARCH_STRATEGY in {"trend_following", "volatility_breakout", "orb"}:
+        scan_args_full.extend([market_data["high"], market_data["low"]])
+
+    full_pf = strategy_module.run_scan(
+        *scan_args_full,
         init_cash=DEFAULT_INIT_CASH,
         next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
         **friction_kwargs,
         max_size=max_size_array,
+        **{k: v for k, v in param_space.items()},
     )
     full_metric_series = _get_metric_series(full_pf, SCAN_OBJECTIVE)
-    _print_top_combinations(full_metric_series, SCAN_OBJECTIVE)
-    _emit_sensitivity_outputs(full_metric_series, SCAN_OBJECTIVE)
+    _print_top_combinations_from_series(full_metric_series, SCAN_OBJECTIVE)
+    # Note: sensitivity heatmap is SMA-specific, skipped for other strategies
 
-    best_pf, _, _ = run(
-        price,
-        fast=best_param[0],
-        slow=best_param[1],
-        init_cash=DEFAULT_INIT_CASH,
-        next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
-        max_size=max_size_array,
-        **friction_kwargs,
-    )
-    strategy_returns = best_pf.returns()
-    _print_regime_breakdown(price, strategy_returns)
+    # Run best parameter on full dataset
+    if best_param is not None:
+        if isinstance(best_param, tuple):
+            param_names = list(param_space.keys())
+            best_params = {
+                param_names[j]: best_param[j] for j in range(len(param_names))
+            }
+        else:
+            best_params = {list(param_space.keys())[0]: best_param}
+
+        run_args_best = [price]
+        if HYPERPARAM_SEARCH_STRATEGY in {"trend_following", "volatility_breakout", "orb"}:
+            run_args_best.extend([market_data["high"], market_data["low"]])
+
+        best_pf = strategy_module.run(
+            *run_args_best,
+            init_cash=DEFAULT_INIT_CASH,
+            next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
+            max_size=max_size_array,
+            **friction_kwargs,
+            **best_params,
+        )
+        if isinstance(best_pf, tuple):
+            best_pf = best_pf[0]
+
+        strategy_returns = best_pf.returns()
+        _print_regime_breakdown(price, strategy_returns)
+
+
+def _print_top_combinations_from_series(
+    metric_series: pd.Series, objective: str
+) -> None:
+    """Print top combinations from a metric series."""
+    top_n = HYPERPARAM_TOP_N
+    top_cols = metric_series.nlargest(top_n)
+    print(f"Top {top_n} combinations:")
+    for params, val in top_cols.items():
+        if isinstance(params, tuple):
+            params_str = ", ".join(str(p) for p in params)
+        else:
+            params_str = str(params)
+        print(f"  {params_str}: {objective}={val:.4f}")
 
 
 def main() -> None:
@@ -457,11 +656,22 @@ def main() -> None:
     friction_kwargs = broker.build_friction_kwargs(
         enable_friction=ENABLE_FRICTION_MODEL
     )
+    
+    print(f"Optimizing strategy: {HYPERPARAM_SEARCH_STRATEGY}")
+    print(f"Symbol: {symbol}, Data points: {len(price)}")
+    print()
+    
     if WFO_ENABLED:
-        _run_wfo(price, friction_kwargs=friction_kwargs, max_size_array=max_size_array)
+        _run_wfo(
+            price,
+            market_data,
+            friction_kwargs=friction_kwargs,
+            max_size_array=max_size_array,
+        )
     else:
         _run_single_pass(
             price,
+            market_data,
             friction_kwargs=friction_kwargs,
             max_size_array=max_size_array,
         )

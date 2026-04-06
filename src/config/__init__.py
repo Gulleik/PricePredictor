@@ -1,13 +1,15 @@
 """Primary config package with shared and strategy-specific settings."""
 
-from . import common
+from . import (
+    common,
+    mean_reversion,
+    orb,
+    routing,
+    sma,
+    trend_following,
+    volatility_breakout,
+)
 from .common import *  # noqa: F401,F403
-from . import mean_reversion
-from . import orb
-from . import routing
-from . import sma
-from . import trend_following
-from . import volatility_breakout
 from .routing import *  # noqa: F401,F403
 
 # Backward-compatible aliases for existing imports.

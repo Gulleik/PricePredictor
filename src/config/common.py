@@ -31,13 +31,20 @@ SCAN_OBJECTIVE: Literal[
     "calmar_ratio",
 ] = "sharpe_ratio"
 HYPERPARAM_TOP_N = 5
+HYPERPARAM_SEARCH_STRATEGY: Literal[
+    "sma_crossover",
+    "mean_reversion",
+    "trend_following",
+    "volatility_breakout",
+    "orb",
+] = "orb"  # Strategy to optimize in hyperparameter search
 
 # Milestone 5: systematic search and metrics defaults
 OPTUNA_SAMPLER: Literal["tpe", "random"] = "tpe"
 OPTUNA_N_TRIALS = 50
 OPTUNA_TIMEOUT_SECONDS = 600
 OPTUNA_SEED = 42
-OPTUNA_STUDY_NAME = "sma_search"
+OPTUNA_STUDY_NAME = "strategy_search"  # Study name prefix; strategy name appended at runtime
 OPTUNA_STARTUP_TRIALS = 10
 RESULTS_DIR = Path("results")
 
