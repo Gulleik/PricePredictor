@@ -60,10 +60,11 @@ def _load_from_cache(cache_path: Path) -> Union[pd.DataFrame, None]:
     try:
         cached_df = pd.read_parquet(cache_path)
     except ImportError:
-        cached_df = pd.read_pickle(cache_path)
-    except Exception:
-        # Support fallback caches written with pickle to a .parquet path.
-        cached_df = pd.read_pickle(cache_path)
+        # No parquet engine available: skip cache and fetch fresh data.
+        print(
+            f"Parquet dependencies are unavailable; skipping cache read: {cache_path}"
+        )
+        return None
 
     required_cols = {"open", "high", "low", "close", "volume"}
     if not required_cols.issubset(cached_df.columns):
@@ -90,7 +91,9 @@ def _save_to_cache(cache_path: Path, ohlcv: pd.DataFrame) -> None:
     try:
         sorted_ohlcv.to_parquet(cache_path)
     except ImportError:
-        sorted_ohlcv.to_pickle(cache_path)
+        print(
+            f"Parquet dependencies are unavailable; skipping cache write: {cache_path}"
+        )
 
 
 def _parse_timeframe(timeframe: str) -> TimeFrame:

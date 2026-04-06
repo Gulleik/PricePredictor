@@ -10,6 +10,28 @@ import run_hyperparameter_search
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture(autouse=True)
+def _isolate_sensitivity_outputs(monkeypatch, tmp_path) -> None:
+    """Keep integration tests hermetic by isolating generated artifacts."""
+    matrix_path = tmp_path / "sensitivity_matrix.csv"
+    heatmap_path = tmp_path / "sensitivity_heatmap.png"
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "SENSITIVITY_MATRIX_OUTPUT_PATH",
+        matrix_path,
+    )
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "SENSITIVITY_HEATMAP_OUTPUT_PATH",
+        heatmap_path,
+    )
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "save_sensitivity_heatmap",
+        lambda *args, **kwargs: None,
+    )
+
+
 class _DummyPortfolioSlice:
     def stats(self):
         return {"sharpe_ratio": 1.0}
