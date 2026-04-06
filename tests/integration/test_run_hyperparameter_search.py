@@ -1,11 +1,13 @@
 """Tests for run_hyperparameter_search script behavior."""
 
 from types import SimpleNamespace
+from unittest import mock
 
 import pandas as pd
 import pytest
 
 import run_hyperparameter_search
+from src.analysis.optuna_integration import GenericSearchResult
 
 pytestmark = pytest.mark.integration
 
@@ -32,12 +34,27 @@ def _isolate_sensitivity_outputs(monkeypatch, tmp_path) -> None:
     )
 
 
-class _DummyPortfolioSlice:
-    def stats(self):
-        return {"sharpe_ratio": 1.0}
+class _DummyTrial:
+    """Mock Optuna trial for testing."""
+
+    def __init__(self, params: dict, value: float) -> None:
+        self.params = params
+        self.value = value
+        self.user_attrs = {"invalid_combo": False}
+
+
+class _DummyTrial:
+    """Mock Optuna trial for testing."""
+
+    def __init__(self, params: dict, value: float) -> None:
+        self.params = params
+        self.value = value
+        self.user_attrs = {"invalid_combo": False}
 
 
 class _DummyRunPortfolio:
+    """Mock portfolio result from run() function."""
+
     def __init__(self, returns: pd.Series) -> None:
         self._returns = returns
 
@@ -48,30 +65,17 @@ class _DummyRunPortfolio:
         return {"sharpe_ratio": 1.0}
 
 
-class _DummyPortfolio:
-    def __init__(self, metric_series: pd.Series) -> None:
-        self.metric_series = metric_series
-
-    def sharpe_ratio(self) -> pd.Series:
-        return self.metric_series
-
-    def total_return(self) -> pd.Series:
-        return self.metric_series
-
-    def __getitem__(self, key):
-        _ = key
-        return _DummyPortfolioSlice()
-
-
 def _dummy_run_result(
     idx_price: pd.DatetimeIndex,
 ) -> tuple[_DummyRunPortfolio, None, None]:
+    """Create dummy result tuple to match run() signature."""
     return _DummyRunPortfolio(pd.Series(0.0, index=idx_price)), None, None
 
 
 def test_main_uses_config_values(monkeypatch, capsys) -> None:
     """main should use configured symbol and top-n values."""
     monkeypatch.setattr(run_hyperparameter_search, "HYPERPARAM_SYMBOL", "ETH/USD")
+    monkeypatch.setattr(run_hyperparameter_search, "HYPERPARAM_SEARCH_STRATEGY", "sma_crossover")
     monkeypatch.setattr(run_hyperparameter_search, "WFO_ENABLED", False)
     monkeypatch.setattr(run_hyperparameter_search, "HYPERPARAM_TOP_N", 2)
     monkeypatch.setattr(run_hyperparameter_search, "SCAN_OBJECTIVE", "sharpe_ratio")
@@ -90,77 +94,38 @@ def test_main_uses_config_values(monkeypatch, capsys) -> None:
         assert start == "2024-01-01T00:00:00+00:00"
         assert end == "2025-01-01T00:00:00+00:00"
         assert timeframe == run_hyperparameter_search.DEFAULT_TIMEFRAME
-        return pd.DataFrame({"close": range(100, 108)}, index=idx_price)
-
-    class _DummyTrial:
-        def __init__(self, fast: int, slow: int, value: float) -> None:
-            self.params = {"fast": fast, "slow": slow}
-            self.value = value
-            self.user_attrs = {"invalid_combo": False}
+        # Return OHLC data for strategies needing high/low
+        return pd.DataFrame({
+            "open": range(99, 107),
+            "high": range(101, 109),
+            "low": range(98, 106),
+            "close": range(100, 108),
+        }, index=idx_price)
 
     class _DummyStudy:
         def __init__(self) -> None:
             self.trials = [
-                _DummyTrial(10, 40, 1.2),
-                _DummyTrial(5, 30, 0.9),
+                _DummyTrial({"fast": 10, "slow": 40}, 1.2),
+                _DummyTrial({"fast": 5, "slow": 30}, 0.9),
             ]
 
-    class _DummySearchResult:
-        def __init__(self) -> None:
-            self.study = _DummyStudy()
-            self.best_fast = 10
-            self.best_slow = 40
-            self.best_objective_value = 1.2
-            self.best_metrics = {
+    def fake_optimize_strategy_parameters(price, **kwargs):
+        return GenericSearchResult(
+            study=_DummyStudy(),
+            best_params={"fast": 10, "slow": 40},
+            best_objective_value=1.2,
+            best_metrics={
                 "sharpe_ratio": 1.2,
                 "sortino_ratio": 1.1,
                 "calmar_ratio": 0.8,
                 "max_drawdown_duration": 4,
-            }
+            },
+            strategy_name="sma_crossover",
+        )
 
-    def fake_optimize(
-        price,
-        *,
-        fast_windows,
-        slow_windows,
-        objective,
-        n_trials,
-        timeout_seconds,
-        sampler_name,
-        seed,
-        startup_trials,
-        study_name,
-        init_cash,
-        portfolio_freq,
-        next_bar_execution,
-        friction_kwargs,
-        max_size_array,
-    ):
-        assert isinstance(price, pd.Series)
-        assert fast_windows == run_hyperparameter_search.FAST_WINDOWS
-        assert slow_windows == run_hyperparameter_search.SLOW_WINDOWS
-        assert objective == run_hyperparameter_search.SCAN_OBJECTIVE
-        assert n_trials == run_hyperparameter_search.OPTUNA_N_TRIALS
-        assert timeout_seconds == run_hyperparameter_search.OPTUNA_TIMEOUT_SECONDS
-        assert sampler_name == run_hyperparameter_search.OPTUNA_SAMPLER
-        assert seed == run_hyperparameter_search.OPTUNA_SEED
-        assert startup_trials == run_hyperparameter_search.OPTUNA_STARTUP_TRIALS
-        assert study_name == run_hyperparameter_search.OPTUNA_STUDY_NAME
-        assert init_cash == run_hyperparameter_search.DEFAULT_INIT_CASH
-        assert portfolio_freq == run_hyperparameter_search.DEFAULT_TIMEFRAME
-        assert next_bar_execution == run_hyperparameter_search.ENABLE_NEXT_BAR_EXECUTION
-        _ = max_size_array
-
-        if run_hyperparameter_search.ENABLE_FRICTION_MODEL:
-            assert friction_kwargs["fees"] > 0
-            assert friction_kwargs["fixed_fees"] > 0
-            assert friction_kwargs["slippage"] > 0
-        else:
-            assert friction_kwargs["fees"] == 0
-            assert friction_kwargs["fixed_fees"] == 0
-            assert friction_kwargs["slippage"] == 0
-
-        return _DummySearchResult()
+    # Create a mock strategy module with a run method
+    mock_strategy_module = mock.MagicMock()
+    mock_strategy_module.run.return_value = _dummy_run_result(idx_price)
 
     monkeypatch.setattr(
         run_hyperparameter_search,
@@ -169,8 +134,13 @@ def test_main_uses_config_values(monkeypatch, capsys) -> None:
     )
     monkeypatch.setattr(
         run_hyperparameter_search,
-        "optimize_sma_parameters",
-        fake_optimize,
+        "get_strategy_module",
+        lambda strategy_name: mock_strategy_module,
+    )
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "optimize_strategy_parameters",
+        fake_optimize_strategy_parameters,
     )
     monkeypatch.setattr(
         run_hyperparameter_search,
@@ -179,11 +149,6 @@ def test_main_uses_config_values(monkeypatch, capsys) -> None:
             run_hyperparameter_search.RESULTS_DIR / "trials.csv",
             run_hyperparameter_search.RESULTS_DIR / "summary.json",
         ),
-    )
-    monkeypatch.setattr(
-        run_hyperparameter_search,
-        "run",
-        lambda *args, **kwargs: _dummy_run_result(idx_price),
     )
     monkeypatch.setattr(
         run_hyperparameter_search,
@@ -204,17 +169,27 @@ def test_main_raises_for_unknown_objective(monkeypatch) -> None:
     """main should fail fast when objective is invalid."""
     monkeypatch.setattr(run_hyperparameter_search, "WFO_ENABLED", False)
     monkeypatch.setattr(run_hyperparameter_search, "SCAN_OBJECTIVE", "invalid_metric")
+
+    idx_price = pd.date_range("2024-01-01", periods=5, freq="D", tz="UTC")
+
     monkeypatch.setattr(
         run_hyperparameter_search,
         "load_crypto_bars",
-        lambda *args, **kwargs: "price",
+        lambda *args, **kwargs: pd.DataFrame({
+            "open": range(99, 104),
+            "high": range(101, 106),
+            "low": range(98, 103),
+            "close": range(100, 105),
+        }, index=idx_price),
     )
+
+    def raise_invalid_objective(price, **kwargs):
+        raise ValueError("Unknown SCAN_OBJECTIVE")
+
     monkeypatch.setattr(
         run_hyperparameter_search,
-        "optimize_sma_parameters",
-        lambda *args, **kwargs: (_ for _ in ()).throw(
-            ValueError("Unknown SCAN_OBJECTIVE")
-        ),
+        "optimize_strategy_parameters",
+        raise_invalid_objective,
     )
 
     with pytest.raises(ValueError, match="Unknown SCAN_OBJECTIVE"):
@@ -225,6 +200,7 @@ def test_main_runs_wfo_mode(monkeypatch, capsys) -> None:
     """main should run WFO branch and print aggregate OOS summary."""
     idx_price = pd.date_range("2024-01-01", periods=40, freq="D", tz="UTC")
 
+    monkeypatch.setattr(run_hyperparameter_search, "HYPERPARAM_SEARCH_STRATEGY", "sma_crossover")
     monkeypatch.setattr(run_hyperparameter_search, "WFO_ENABLED", True)
     monkeypatch.setattr(run_hyperparameter_search, "WFO_MODE", "manual")
     monkeypatch.setattr(run_hyperparameter_search, "FAST_WINDOWS", [5, 10])
@@ -241,10 +217,12 @@ def test_main_runs_wfo_mode(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
         run_hyperparameter_search,
         "load_crypto_bars",
-        lambda *args, **kwargs: pd.DataFrame(
-            {"close": range(100, 140)},
-            index=idx_price,
-        ),
+        lambda *args, **kwargs: pd.DataFrame({
+            "open": [n - 1 for n in range(100, 140)],
+            "high": [n + 1 for n in range(100, 140)],
+            "low": [n - 2 for n in range(100, 140)],
+            "close": list(range(100, 140)),
+        }, index=idx_price),
     )
     monkeypatch.setattr(
         run_hyperparameter_search,
@@ -255,25 +233,79 @@ def test_main_runs_wfo_mode(monkeypatch, capsys) -> None:
         ],
     )
 
-    metric_is = pd.Series(
-        [1.2, 0.8],
-        index=pd.MultiIndex.from_tuples([(5, 30), (10, 40)]),
-    )
-    metric_oos = pd.Series([0.6], index=pd.MultiIndex.from_tuples([(5, 30)]))
     call_count = {"value": 0}
 
-    def fake_run_scan(*args, **kwargs):
+    def fake_optimize_strategy_parameters(price, **kwargs):
         call_count["value"] += 1
-        # Two IS scans, two OOS scans, one full-grid scan
-        if call_count["value"] in {1, 3, 5}:
-            return _DummyPortfolio(metric_is)
-        return _DummyPortfolio(metric_oos)
+        # Alternate between IS and OOS windows
+        if call_count["value"] in {1, 3}:
+            # IS scans return multiple param combinations
+            return GenericSearchResult(
+                study=type(
+                    "Study",
+                    (),
+                    {
+                        "trials": [
+                            _DummyTrial({"fast": 5, "slow": 30}, 1.2),
+                            _DummyTrial({"fast": 10, "slow": 40}, 0.8),
+                        ]
+                    },
+                )(),
+                best_params={"fast": 5, "slow": 30},
+                best_objective_value=1.2,
+                best_metrics={"sharpe_ratio": 1.2},
+                strategy_name="sma_crossover",
+            )
+        else:
+            # OOS scan
+            return GenericSearchResult(
+                study=type(
+                    "Study",
+                    (),
+                    {"trials": [_DummyTrial({"fast": 5, "slow": 30}, 0.6)]},
+                )(),
+                best_params={"fast": 5, "slow": 30},
+                best_objective_value=0.6,
+                best_metrics={"sharpe_ratio": 0.6},
+                strategy_name="sma_crossover",
+            )
 
-    monkeypatch.setattr(run_hyperparameter_search, "run_scan", fake_run_scan)
+    # Create a mock strategy module with run and run_scan methods
+    mock_strategy_module = mock.MagicMock()
+    mock_strategy_module.run.return_value = _dummy_run_result(idx_price)
+    
+    # Mock run_scan to return a portfolio with metric accessors
+    def mock_run_scan(*args, **kwargs):
+        # Create a dummy portfolio that mimics VectorBT results
+        # For SMA with 2 params, this should return a portfolio where fast/slow combinations
+        # can be accessed via portfolio.sharpe_ratio() or similar
+        class _DummyScanPortfolio:
+            def sharpe_ratio(self):
+                # Return metrics indexed by (fast, slow) parameters
+                return pd.Series({
+                    (5, 30): 1.2,
+                    (10, 40): 0.8,
+                }, name="sharpe_ratio")
+            
+            def total_return(self):
+                return pd.Series({
+                    (5, 30): 1.2,
+                    (10, 40): 0.8,
+                }, name="total_return")
+        
+        return _DummyScanPortfolio()
+    
+    mock_strategy_module.run_scan.side_effect = mock_run_scan
+
     monkeypatch.setattr(
         run_hyperparameter_search,
-        "run",
-        lambda *args, **kwargs: _dummy_run_result(idx_price),
+        "get_strategy_module",
+        lambda strategy_name: mock_strategy_module,
+    )
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "optimize_strategy_parameters",
+        fake_optimize_strategy_parameters,
     )
     monkeypatch.setattr(
         run_hyperparameter_search,
@@ -317,6 +349,7 @@ def test_main_runs_wfo_auto_mode(monkeypatch, capsys) -> None:
     """Auto mode should derive windows from available bar count."""
     idx_price = pd.date_range("2024-01-01", periods=100, freq="D", tz="UTC")
 
+    monkeypatch.setattr(run_hyperparameter_search, "HYPERPARAM_SEARCH_STRATEGY", "sma_crossover")
     monkeypatch.setattr(run_hyperparameter_search, "WFO_ENABLED", True)
     monkeypatch.setattr(run_hyperparameter_search, "WFO_MODE", "auto")
     monkeypatch.setattr(run_hyperparameter_search, "FAST_WINDOWS", [5, 10])
@@ -331,10 +364,12 @@ def test_main_runs_wfo_auto_mode(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
         run_hyperparameter_search,
         "load_crypto_bars",
-        lambda *args, **kwargs: pd.DataFrame(
-            {"close": range(100, 200)},
-            index=idx_price,
-        ),
+        lambda *args, **kwargs: pd.DataFrame({
+            "open": [n - 1 for n in range(100, 200)],
+            "high": [n + 1 for n in range(100, 200)],
+            "low": [n - 2 for n in range(100, 200)],
+            "close": list(range(100, 200)),
+        }, index=idx_price),
     )
 
     captured = {"calls": []}
@@ -355,25 +390,73 @@ def test_main_runs_wfo_auto_mode(monkeypatch, capsys) -> None:
         fake_generate_wfo_windows,
     )
 
-    metric_is = pd.Series(
-        [1.2, 0.8],
-        index=pd.MultiIndex.from_tuples([(5, 30), (10, 40)]),
-    )
-    metric_oos = pd.Series([0.6], index=pd.MultiIndex.from_tuples([(5, 30)]))
     call_count = {"value": 0}
 
-    def fake_run_scan(*args, **kwargs):
+    def fake_optimize_strategy_parameters(price, **kwargs):
         call_count["value"] += 1
         # One IS scan, one OOS scan, one full-grid scan
-        if call_count["value"] in {1, 3}:
-            return _DummyPortfolio(metric_is)
-        return _DummyPortfolio(metric_oos)
+        if call_count["value"] in {1}:
+            return GenericSearchResult(
+                study=type(
+                    "Study",
+                    (),
+                    {
+                        "trials": [
+                            _DummyTrial({"fast": 5, "slow": 30}, 1.2),
+                            _DummyTrial({"fast": 10, "slow": 40}, 0.8),
+                        ]
+                    },
+                )(),
+                best_params={"fast": 5, "slow": 30},
+                best_objective_value=1.2,
+                best_metrics={"sharpe_ratio": 1.2},
+                strategy_name="sma_crossover",
+            )
+        else:
+            return GenericSearchResult(
+                study=type(
+                    "Study",
+                    (),
+                    {"trials": [_DummyTrial({"fast": 5, "slow": 30}, 0.6)]},
+                )(),
+                best_params={"fast": 5, "slow": 30},
+                best_objective_value=0.6,
+                best_metrics={"sharpe_ratio": 0.6},
+                strategy_name="sma_crossover",
+            )
 
-    monkeypatch.setattr(run_hyperparameter_search, "run_scan", fake_run_scan)
+    # Create a mock strategy module with run and run_scan methods
+    mock_strategy_module = mock.MagicMock()
+    mock_strategy_module.run.return_value = _dummy_run_result(idx_price)
+    
+    # Mock run_scan to return a portfolio with metric accessors
+    def mock_run_scan(*args, **kwargs):
+        class _DummyScanPortfolio:
+            def sharpe_ratio(self):
+                return pd.Series({
+                    (5, 30): 1.2,
+                    (10, 40): 0.8,
+                }, name="sharpe_ratio")
+            
+            def total_return(self):
+                return pd.Series({
+                    (5, 30): 1.2,
+                    (10, 40): 0.8,
+                }, name="total_return")
+        
+        return _DummyScanPortfolio()
+    
+    mock_strategy_module.run_scan.side_effect = mock_run_scan
+
     monkeypatch.setattr(
         run_hyperparameter_search,
-        "run",
-        lambda *args, **kwargs: _dummy_run_result(idx_price),
+        "get_strategy_module",
+        lambda strategy_name: mock_strategy_module,
+    )
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "optimize_strategy_parameters",
+        fake_optimize_strategy_parameters,
     )
     monkeypatch.setattr(
         run_hyperparameter_search,

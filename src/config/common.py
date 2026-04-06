@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Literal
 
 # Default symbols for crypto backtesting
-DEFAULT_SYMBOLS = ["BTC/USD", "ETH/USD"]
+DEFAULT_SYMBOLS = ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD", "DOGE/USD"]
 
 # Entry-script symbols
 BACKTEST_SYMBOL = DEFAULT_SYMBOLS[0]
@@ -14,7 +14,7 @@ HYPERPARAM_SYMBOL = DEFAULT_SYMBOLS[0]
 DATE_REFRESH_CADENCE: Literal["month", "week", "day"] = "week"
 DEFAULT_LOOKBACK_DAYS = 365  # 1 year of daily data
 
-# Default timeframe for bars
+# Default timeframe for bars, aleternatives: "1h", "15m", "5m"
 DEFAULT_TIMEFRAME = "1h"
 
 # Default initial capital for backtests
