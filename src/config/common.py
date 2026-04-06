@@ -1,4 +1,4 @@
-"""Default configuration for backtesting."""
+"""Shared configuration used by all strategies and scripts."""
 
 from pathlib import Path
 from typing import Literal
@@ -20,9 +20,7 @@ DEFAULT_TIMEFRAME = "1h"
 # Default initial capital for backtests
 DEFAULT_INIT_CASH = 10_000.0
 
-# Single-run SMA defaults
-BACKTEST_FAST_WINDOW = 10
-BACKTEST_SLOW_WINDOW = 25
+# Backtest rendering
 BACKTEST_RENDER_CHART = False
 
 # Hyperparameter search defaults
@@ -32,8 +30,6 @@ SCAN_OBJECTIVE: Literal[
     "sortino_ratio",
     "calmar_ratio",
 ] = "sharpe_ratio"
-FAST_WINDOWS = [5, 10, 15, 20, 25]
-SLOW_WINDOWS = [30, 40, 50, 60]
 HYPERPARAM_TOP_N = 5
 
 # Milestone 5: systematic search and metrics defaults

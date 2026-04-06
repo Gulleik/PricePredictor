@@ -1,0 +1,65 @@
+"""Primary config package with shared and strategy-specific settings."""
+
+from . import common
+from .common import *  # noqa: F401,F403
+from . import mean_reversion
+from . import orb
+from . import routing
+from . import sma
+from . import trend_following
+from . import volatility_breakout
+from .routing import *  # noqa: F401,F403
+
+# Backward-compatible aliases for existing imports.
+BACKTEST_FAST_WINDOW = sma.BACKTEST_FAST_WINDOW
+BACKTEST_SLOW_WINDOW = sma.BACKTEST_SLOW_WINDOW
+FAST_WINDOWS = sma.FAST_WINDOWS
+SLOW_WINDOWS = sma.SLOW_WINDOWS
+
+MEAN_REVERSION_RSI_PERIOD = mean_reversion.RSI_PERIOD
+MEAN_REVERSION_OVERSOLD = mean_reversion.OVERSOLD
+MEAN_REVERSION_OVERBOUGHT = mean_reversion.OVERBOUGHT
+MEAN_REVERSION_BB_WINDOW = mean_reversion.BB_WINDOW
+MEAN_REVERSION_BB_STD = mean_reversion.BB_STD
+MEAN_REVERSION_USE_BOLLINGER = mean_reversion.USE_BOLLINGER
+MEAN_REVERSION_VOL_LOOKBACK = mean_reversion.VOL_LOOKBACK
+MEAN_REVERSION_VOL_MAX_ANNUALIZED = mean_reversion.VOL_MAX_ANNUALIZED
+MEAN_REVERSION_RSI_PERIOD_VALUES = mean_reversion.RSI_PERIOD_VALUES
+MEAN_REVERSION_OVERSOLD_VALUES = mean_reversion.OVERSOLD_VALUES
+MEAN_REVERSION_OVERBOUGHT_VALUES = mean_reversion.OVERBOUGHT_VALUES
+MEAN_REVERSION_BB_WINDOW_VALUES = mean_reversion.BB_WINDOW_VALUES
+MEAN_REVERSION_BB_STD_VALUES = mean_reversion.BB_STD_VALUES
+MEAN_REVERSION_VOL_MAX_VALUES = mean_reversion.VOL_MAX_VALUES
+
+TREND_EMA_FAST_WINDOW = trend_following.EMA_FAST_WINDOW
+TREND_EMA_SLOW_WINDOW = trend_following.EMA_SLOW_WINDOW
+TREND_ATR_WINDOW = trend_following.ATR_WINDOW
+TREND_ATR_STOP_MULTIPLE = trend_following.ATR_STOP_MULTIPLE
+TREND_EMA_FAST_WINDOWS = trend_following.EMA_FAST_WINDOWS
+TREND_EMA_SLOW_WINDOWS = trend_following.EMA_SLOW_WINDOWS
+TREND_ATR_WINDOWS = trend_following.ATR_WINDOWS
+TREND_ATR_STOP_MULTIPLES = trend_following.ATR_STOP_MULTIPLES
+
+VOL_BREAKOUT_DONCHIAN_WINDOW = volatility_breakout.DONCHIAN_WINDOW
+VOL_BREAKOUT_ATR_WINDOW = volatility_breakout.ATR_WINDOW
+VOL_BREAKOUT_USE_ATR_FILTER = volatility_breakout.USE_ATR_FILTER
+VOL_BREAKOUT_ATR_MIN_FRACTION = volatility_breakout.ATR_MIN_FRACTION
+VOL_BREAKOUT_DONCHIAN_WINDOWS = volatility_breakout.DONCHIAN_WINDOWS
+VOL_BREAKOUT_ATR_WINDOWS = volatility_breakout.ATR_WINDOWS
+VOL_BREAKOUT_ATR_MIN_VALUES = volatility_breakout.ATR_MIN_VALUES
+
+ORB_RANGE_BARS = orb.RANGE_BARS
+ORB_BREAKOUT_BUFFER = orb.BREAKOUT_BUFFER
+ORB_ALLOW_SHORT = orb.ALLOW_SHORT
+ORB_RANGE_BARS_VALUES = orb.RANGE_BARS_VALUES
+ORB_BREAKOUT_BUFFER_VALUES = orb.BREAKOUT_BUFFER_VALUES
+
+__all__ = [
+    "common",
+    "routing",
+    "sma",
+    "mean_reversion",
+    "trend_following",
+    "volatility_breakout",
+    "orb",
+]
