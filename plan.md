@@ -49,7 +49,19 @@ Transform the repository into a **Strategic Sandbox**. The goal is to ensure tha
 - [ ] **Volatility Breakout:** Donchian Channel or ATR-based breakout logic.
 - [ ] **ORB:** Opening Range Breakout logic for early-session volatility.
 
-## Milestone 7: Stress Testing (The "Trial by Fire")
+## Milestone 7: Full-Matrix Hyperparameter Automation (The "Batch Research Engine")
+**Goal:** Replace manual strategy-by-strategy optimization with a single orchestrated run over every configured strategy, symbol, and timeframe.
+
+- [ ] **Config-Driven Universe:** Add explicit lists in `src/config/common.py` for search symbols, search timeframes, and enabled strategies (for example `HYPERPARAM_SYMBOLS`, `HYPERPARAM_TIMEFRAMES`, `HYPERPARAM_STRATEGIES`).
+- [ ] **Batch Orchestrator:** Extend `run_hyperparameter_search.py` to loop over the full matrix `(strategy, timeframe, symbol)` and execute Optuna per combination.
+- [ ] **Failure Isolation:** Ensure one failing combination is logged and skipped without stopping the full batch run.
+- [ ] **Structured Outputs:** Save one per-run artifact plus a single aggregated leaderboard/table in `results/`, including strategy, symbol, timeframe, objective score, and key params.
+- [ ] **Progress Observability:** Print concise progress updates (current combination, completed/total, ETA) to keep long runs transparent.
+- [ ] **Reproducibility Guardrails:** Enforce fixed seeds and persist the effective config snapshot with each run.
+- [ ] **Execution Modes:** Support `quick` and `full` matrix modes via config-only switches (no required CLI args).
+- [ ] **Validation Tests:** Add integration/scenario tests to verify matrix coverage, output aggregation, and failure-isolation behavior.
+
+## Milestone 8: Stress Testing (The "Trial by Fire")
 **Goal:** Final validation before considering live deployment.
 
 - [ ] **Monte Carlo Simulation:** Run 1,000 iterations with shuffled returns and random trade "drops."
