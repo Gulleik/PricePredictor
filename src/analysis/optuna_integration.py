@@ -157,21 +157,23 @@ def optimize_strategy_parameters(
         # Call strategy run() with trial parameters
         try:
             # Build arguments based on strategy
-            run_args = [price]
+            run_kwargs: dict[str, Any] = {}
             if strategy_name in {"trend_following", "volatility_breakout", "orb"}:
                 if market_data is None:
                     raise ValueError(
                         f"Strategy '{strategy_name}' requires market_data (OHLC)"
                     )
-                run_args.extend([market_data["high"], market_data["low"]])
+                run_kwargs["high"] = market_data["high"]
+                run_kwargs["low"] = market_data["low"]
 
             result = strategy_module.run(
-                *run_args,
+                price,
                 init_cash=init_cash,
                 next_bar_execution=next_bar_execution,
                 max_size=max_size_array,
                 portfolio_freq=portfolio_freq,
                 **friction_kwargs,
+                **run_kwargs,
                 **trial_params,
             )
             # Different strategies return different tuple lengths
