@@ -389,21 +389,21 @@ def persist_search_artifacts(
     trials_path = output_dir / f"{timestamp}_optuna_trials.csv"
     summary_path = output_dir / f"{timestamp}_optuna_summary.json"
 
-    trial_df = search_result.study.trials_dataframe()
-    trial_df.to_csv(trials_path, index=False)
-
     # Handle both SearchResult (SMA-specific) and GenericSearchResult
     if isinstance(search_result, GenericSearchResult):
         best_params_summary = search_result.best_params
+        strategy_name = search_result.strategy_name
     else:
         best_params_summary = {
             "fast": search_result.best_fast,
             "slow": search_result.best_slow,
         }
+        strategy_name = None
 
     summary = {
         "timestamp_utc": timestamp,
         "objective": objective,
+        "strategy": strategy_name,
         "best_params": best_params_summary,
         "best_objective_value": search_result.best_objective_value,
         "best_metrics": search_result.best_metrics,
