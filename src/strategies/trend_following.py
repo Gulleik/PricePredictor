@@ -121,8 +121,8 @@ def run_scan(
     slow_windows: Iterable[int],
     init_cash: float = 10_000.0,
     *,
-    atr_window: int = 14,
-    atr_stop_multiple: float = 2.0,
+    atr_windows: Iterable[int] = (14,),
+    atr_stop_multiples: Iterable[float] = (2.0,),
     high: pd.Series | None = None,
     low: pd.Series | None = None,
     next_bar_execution: bool = False,
@@ -132,26 +132,33 @@ def run_scan(
     max_size: np.ndarray | None = None,
     portfolio_freq: str | None = None,
 ) -> Any:
-    """Run EMA scan across (fast, slow) combinations."""
-    entries_df: dict[tuple[int, int], pd.Series] = {}
-    exits_df: dict[tuple[int, int], pd.Series] = {}
+    """Run EMA scan across all 4 tunable parameters (cartesian product)."""
+    entries_df: dict[tuple, pd.Series] = {}
+    exits_df: dict[tuple, pd.Series] = {}
 
     for fast_window in fast_windows:
         for slow_window in slow_windows:
             if int(fast_window) >= int(slow_window):
                 continue
-            entries, exits, *_ = _signals_from_series(
-                price,
-                high=high,
-                low=low,
-                fast_window=int(fast_window),
-                slow_window=int(slow_window),
-                atr_window=atr_window,
-                atr_stop_multiple=atr_stop_multiple,
-            )
-            key = (int(fast_window), int(slow_window))
-            entries_df[key] = entries
-            exits_df[key] = exits
+            for atr_w in atr_windows:
+                for atr_m in atr_stop_multiples:
+                    key = (
+                        int(fast_window),
+                        int(slow_window),
+                        int(atr_w),
+                        float(atr_m),
+                    )
+                    entries, exits, *_ = _signals_from_series(
+                        price,
+                        high=high,
+                        low=low,
+                        fast_window=int(fast_window),
+                        slow_window=int(slow_window),
+                        atr_window=int(atr_w),
+                        atr_stop_multiple=float(atr_m),
+                    )
+                    entries_df[key] = entries
+                    exits_df[key] = exits
 
     if not entries_df:
         raise ValueError("No valid fast/slow combinations for trend_following scan.")

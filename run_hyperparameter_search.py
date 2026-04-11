@@ -448,6 +448,46 @@ def _run_single_pass(
     _print_regime_breakdown(price, strategy_returns)
 
 
+def _build_scan_kwargs(
+    strategy_name: str,
+    param_space: dict[str, list[Any]],
+) -> dict[str, list[Any]]:
+    """Translate param_space keys to the matching run_scan kwarg names."""
+    if strategy_name == "sma_crossover":
+        return {
+            "fast_windows": param_space["fast"],
+            "slow_windows": param_space["slow"],
+        }
+    if strategy_name == "mean_reversion":
+        return {
+            "rsi_periods": param_space["rsi_period"],
+            "oversold_values": param_space["oversold"],
+            "overbought_values": param_space["overbought"],
+            "bb_windows": param_space["bb_window"],
+            "bb_std_values": param_space["bb_std"],
+            "vol_max_values": param_space["vol_max_annualized"],
+        }
+    if strategy_name == "trend_following":
+        return {
+            "fast_windows": param_space["fast_window"],
+            "slow_windows": param_space["slow_window"],
+            "atr_windows": param_space["atr_window"],
+            "atr_stop_multiples": param_space["atr_stop_multiple"],
+        }
+    if strategy_name == "volatility_breakout":
+        return {
+            "donchian_windows": param_space["donchian_window"],
+            "atr_windows": param_space["atr_window"],
+            "atr_min_fractions": param_space["atr_min_fraction"],
+        }
+    if strategy_name == "orb":
+        return {
+            "range_bars_values": param_space["range_bars"],
+            "breakout_buffer_values": param_space["breakout_buffer"],
+        }
+    raise ValueError(f"Unknown strategy for scan kwargs: {strategy_name}")
+
+
 def _run_wfo(
     price: pd.Series,
     market_data: pd.DataFrame,
@@ -505,17 +545,22 @@ def _run_wfo(
             market_data_oos = market_data.iloc[window.oos_start : window.oos_end]
 
         # Run in-sample scan with all parameter combinations
-        scan_args_is = [price_is]
-        if market_data_is is not None:
-            scan_args_is.extend([market_data_is["high"], market_data_is["low"]])
+        ohlc_kwargs_is: dict[str, pd.Series] = {}
+        if HYPERPARAM_SEARCH_STRATEGY in {"trend_following", "volatility_breakout", "orb"}:
+            if market_data_is is not None:
+                ohlc_kwargs_is = {
+                    "high": market_data_is["high"],
+                    "low": market_data_is["low"],
+                }
 
         pf_is = strategy_module.run_scan(
-            *scan_args_is,
+            price_is,
             init_cash=DEFAULT_INIT_CASH,
             next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
             **friction_kwargs,
             max_size=max_size_is,
-            **{k: v for k, v in param_space.items()},
+            **ohlc_kwargs_is,
+            **_build_scan_kwargs(HYPERPARAM_SEARCH_STRATEGY, param_space),
         )
         is_metric = _get_metric_series(pf_is, SCAN_OBJECTIVE)
         best_col = is_metric.idxmax()
@@ -534,17 +579,23 @@ def _run_wfo(
             param_key = best_col
 
         # Run out-of-sample with best in-sample parameters
-        scan_args_oos = [price_oos]
-        if market_data_oos is not None:
-            scan_args_oos.extend([market_data_oos["high"], market_data_oos["low"]])
+        ohlc_kwargs_oos: dict[str, pd.Series] = {}
+        if HYPERPARAM_SEARCH_STRATEGY in {"trend_following", "volatility_breakout", "orb"}:
+            if market_data_oos is not None:
+                ohlc_kwargs_oos = {
+                    "high": market_data_oos["high"],
+                    "low": market_data_oos["low"],
+                }
 
+        oos_single_space = {k: [best_params[k]] for k in param_space}
         pf_oos = strategy_module.run_scan(
-            *scan_args_oos,
+            price_oos,
             init_cash=DEFAULT_INIT_CASH,
             next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
             **friction_kwargs,
             max_size=max_size_oos,
-            **{k: [best_params.get(k, v[0])] for k, v in param_space.items()},
+            **ohlc_kwargs_oos,
+            **_build_scan_kwargs(HYPERPARAM_SEARCH_STRATEGY, oos_single_space),
         )
         oos_metric_series = _get_metric_series(pf_oos, WFO_OOS_METRIC)
         oos_value = float(oos_metric_series.iloc[0])
@@ -587,21 +638,21 @@ def _run_wfo(
     )
 
     # Run scan on full dataset with all parameters for sensitivity analysis
-    scan_args_full = [price]
-    if HYPERPARAM_SEARCH_STRATEGY in {
-        "trend_following",
-        "volatility_breakout",
-        "orb",
-    }:
-        scan_args_full.extend([market_data["high"], market_data["low"]])
+    ohlc_kwargs_full: dict[str, pd.Series] = {}
+    if HYPERPARAM_SEARCH_STRATEGY in {"trend_following", "volatility_breakout", "orb"}:
+        ohlc_kwargs_full = {
+            "high": market_data["high"],
+            "low": market_data["low"],
+        }
 
     full_pf = strategy_module.run_scan(
-        *scan_args_full,
+        price,
         init_cash=DEFAULT_INIT_CASH,
         next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
         **friction_kwargs,
         max_size=max_size_array,
-        **{k: v for k, v in param_space.items()},
+        **ohlc_kwargs_full,
+        **_build_scan_kwargs(HYPERPARAM_SEARCH_STRATEGY, param_space),
     )
     full_metric_series = _get_metric_series(full_pf, SCAN_OBJECTIVE)
     _print_top_combinations_from_series(full_metric_series, SCAN_OBJECTIVE)
