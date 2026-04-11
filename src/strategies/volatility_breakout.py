@@ -109,9 +109,9 @@ def run_scan(
     donchian_windows: Iterable[int],
     init_cash: float = 10_000.0,
     *,
-    atr_window: int = 14,
+    atr_windows: Iterable[int] = (14,),
     use_atr_filter: bool = True,
-    atr_min_fraction: float = 0.005,
+    atr_min_fractions: Iterable[float] = (0.005,),
     next_bar_execution: bool = False,
     fees: float = 0.0,
     fixed_fees: float = 0.0,
@@ -119,22 +119,25 @@ def run_scan(
     max_size: np.ndarray | None = None,
     portfolio_freq: str | None = None,
 ) -> Any:
-    """Run Donchian scan across channel windows."""
-    entries_df: dict[int, pd.Series] = {}
-    exits_df: dict[int, pd.Series] = {}
+    """Run Donchian scan across all 3 tunable parameters (cartesian product)."""
+    entries_df: dict[tuple, pd.Series] = {}
+    exits_df: dict[tuple, pd.Series] = {}
 
     for window in donchian_windows:
-        entries, exits, *_ = _signals(
-            price,
-            high,
-            low,
-            donchian_window=int(window),
-            atr_window=atr_window,
-            use_atr_filter=use_atr_filter,
-            atr_min_fraction=atr_min_fraction,
-        )
-        entries_df[int(window)] = entries
-        exits_df[int(window)] = exits
+        for atr_w in atr_windows:
+            for atr_min in atr_min_fractions:
+                key = (int(window), int(atr_w), float(atr_min))
+                entries, exits, *_ = _signals(
+                    price,
+                    high,
+                    low,
+                    donchian_window=int(window),
+                    atr_window=int(atr_w),
+                    use_atr_filter=use_atr_filter,
+                    atr_min_fraction=float(atr_min),
+                )
+                entries_df[key] = entries
+                exits_df[key] = exits
 
     entries_frame = pd.DataFrame(entries_df, index=price.index)
     exits_frame = pd.DataFrame(exits_df, index=price.index)

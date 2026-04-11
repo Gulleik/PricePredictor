@@ -128,15 +128,15 @@ def run(
 def run_scan(
     price: pd.Series,
     rsi_periods: Iterable[int],
-    bb_windows: Iterable[int],
+    oversold_values: Iterable[float] = (30.0,),
+    overbought_values: Iterable[float] = (70.0,),
+    bb_windows: Iterable[int] = (20,),
+    bb_std_values: Iterable[float] = (2.0,),
+    vol_max_values: Iterable[float] = (1.5,),
     init_cash: float = 10_000.0,
     *,
-    oversold: float = 30.0,
-    overbought: float = 70.0,
-    bb_std: float = 2.0,
     use_bollinger: bool = True,
     vol_lookback: int = 24,
-    vol_max_annualized: float = 1.5,
     next_bar_execution: bool = False,
     fees: float = 0.0,
     fixed_fees: float = 0.0,
@@ -144,27 +144,46 @@ def run_scan(
     max_size: np.ndarray | None = None,
     portfolio_freq: str | None = None,
 ) -> Any:
-    """Run mean-reversion scan across RSI and Bollinger windows."""
-    entries_df: dict[str, pd.Series] = {}
-    exits_df: dict[str, pd.Series] = {}
+    """Run mean-reversion scan across all tunable parameters (cartesian product)."""
+    entries_df: dict[tuple, pd.Series] = {}
+    exits_df: dict[tuple, pd.Series] = {}
 
     for rsi_period in rsi_periods:
-        for bb_window in bb_windows:
-            label = f"rsi={int(rsi_period)}|bb={int(bb_window)}"
-            entries, exits, _, _, _ = _build_signals(
-                price,
-                rsi_period=int(rsi_period),
-                oversold=oversold,
-                overbought=overbought,
-                bb_window=int(bb_window),
-                bb_std=bb_std,
-                use_bollinger=use_bollinger,
-                vol_lookback=vol_lookback,
-                vol_max_annualized=vol_max_annualized,
-                portfolio_freq=portfolio_freq,
-            )
-            entries_df[label] = entries
-            exits_df[label] = exits
+        for oversold in oversold_values:
+            for overbought in overbought_values:
+                if float(oversold) >= float(overbought):
+                    continue
+                for bb_window in bb_windows:
+                    for bb_std in bb_std_values:
+                        for vol_max in vol_max_values:
+                            key = (
+                                int(rsi_period),
+                                float(oversold),
+                                float(overbought),
+                                int(bb_window),
+                                float(bb_std),
+                                float(vol_max),
+                            )
+                            try:
+                                entries, exits, _, _, _ = _build_signals(
+                                    price,
+                                    rsi_period=int(rsi_period),
+                                    oversold=float(oversold),
+                                    overbought=float(overbought),
+                                    bb_window=int(bb_window),
+                                    bb_std=float(bb_std),
+                                    use_bollinger=use_bollinger,
+                                    vol_lookback=vol_lookback,
+                                    vol_max_annualized=float(vol_max),
+                                    portfolio_freq=portfolio_freq,
+                                )
+                            except ValueError:
+                                continue
+                            entries_df[key] = entries
+                            exits_df[key] = exits
+
+    if not entries_df:
+        raise ValueError("No valid parameter combinations for mean_reversion scan.")
 
     entries_frame = pd.DataFrame(entries_df, index=price.index)
     exits_frame = pd.DataFrame(exits_df, index=price.index)

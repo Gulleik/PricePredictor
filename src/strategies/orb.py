@@ -179,7 +179,7 @@ def run_scan(
     range_bars_values: Iterable[int],
     init_cash: float = 10_000.0,
     *,
-    breakout_buffer: float = 0.001,
+    breakout_buffer_values: Iterable[float] = (0.001,),
     allow_short: bool = True,
     next_bar_execution: bool = False,
     fees: float = 0.0,
@@ -188,24 +188,26 @@ def run_scan(
     max_size: np.ndarray | None = None,
     portfolio_freq: str | None = None,
 ) -> Any:
-    """Run ORB scan across opening range lengths."""
-    entries_df: dict[int, pd.Series] = {}
-    exits_df: dict[int, pd.Series] = {}
-    short_entries_df: dict[int, pd.Series] = {}
-    short_exits_df: dict[int, pd.Series] = {}
+    """Run ORB scan across range_bars and breakout_buffer (cartesian product)."""
+    entries_df: dict[tuple, pd.Series] = {}
+    exits_df: dict[tuple, pd.Series] = {}
+    short_entries_df: dict[tuple, pd.Series] = {}
+    short_exits_df: dict[tuple, pd.Series] = {}
 
     for bars in range_bars_values:
-        entries, exits, short_entries, short_exits, *_ = _directional_signals(
-            price,
-            high,
-            low,
-            range_bars=int(bars),
-            breakout_buffer=breakout_buffer,
-        )
-        entries_df[int(bars)] = entries
-        exits_df[int(bars)] = exits
-        short_entries_df[int(bars)] = short_entries
-        short_exits_df[int(bars)] = short_exits
+        for breakout_buffer in breakout_buffer_values:
+            key = (int(bars), float(breakout_buffer))
+            entries, exits, short_entries, short_exits, *_ = _directional_signals(
+                price,
+                high,
+                low,
+                range_bars=int(bars),
+                breakout_buffer=float(breakout_buffer),
+            )
+            entries_df[key] = entries
+            exits_df[key] = exits
+            short_entries_df[key] = short_entries
+            short_exits_df[key] = short_exits
 
     entries_frame = pd.DataFrame(entries_df, index=price.index)
     exits_frame = pd.DataFrame(exits_df, index=price.index)
