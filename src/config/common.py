@@ -3,12 +3,28 @@
 from pathlib import Path
 from typing import Literal
 
+StrategyName = Literal[
+    "sma_crossover",
+    "mean_reversion",
+    "trend_following",
+    "volatility_breakout",
+    "orb",
+]
+
+ACTIVE_STRATEGY: StrategyName = "sma_crossover"
+ENABLED_STRATEGIES: tuple[StrategyName, ...] = (
+    "sma_crossover",
+    "mean_reversion",
+    "trend_following",
+    "volatility_breakout",
+    "orb",
+)
+
 # Default symbols for crypto backtesting
 DEFAULT_SYMBOLS = ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD", "DOGE/USD"]
 
 # Entry-script symbols
-BACKTEST_SYMBOL = DEFAULT_SYMBOLS[0]
-HYPERPARAM_SYMBOL = DEFAULT_SYMBOLS[0]
+BACKTEST_SYMBOL = DEFAULT_SYMBOLS[1]
 
 # Default date range settings
 DATE_REFRESH_CADENCE: Literal["month", "week", "day"] = "week"
@@ -31,25 +47,12 @@ SCAN_OBJECTIVE: Literal[
     "calmar_ratio",
 ] = "sharpe_ratio"
 HYPERPARAM_TOP_N = 5
-HYPERPARAM_SEARCH_STRATEGY: Literal[
-    "sma_crossover",
-    "mean_reversion",
-    "trend_following",
-    "volatility_breakout",
-    "orb",
-] = "orb"  # Strategy to optimize in hyperparameter search
 
 # Milestone 7: full-matrix hyperparameter batch search
-HYPERPARAM_SYMBOLS = ["BTC/USD", "ETH/USD", "SOL/USD"]
-HYPERPARAM_TIMEFRAMES = ["1h", "4h"]
+HYPERPARAM_SYMBOLS = ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD", "DOGE/USD"]
+HYPERPARAM_TIMEFRAMES = ["1h", "15m", "5m"]
 HYPERPARAM_STRATEGIES: list[
-    Literal[
-        "sma_crossover",
-        "mean_reversion",
-        "trend_following",
-        "volatility_breakout",
-        "orb",
-    ]
+    StrategyName
 ] = [
     "sma_crossover",
     "mean_reversion",
@@ -62,13 +65,7 @@ BATCH_MODE: Literal["quick", "full"] = "full"
 BATCH_QUICK_SYMBOLS = ["BTC/USD"]
 BATCH_QUICK_TIMEFRAMES = ["1h"]
 BATCH_QUICK_STRATEGIES: list[
-    Literal[
-        "sma_crossover",
-        "mean_reversion",
-        "trend_following",
-        "volatility_breakout",
-        "orb",
-    ]
+    StrategyName
 ] = [
     "sma_crossover",
     "mean_reversion",

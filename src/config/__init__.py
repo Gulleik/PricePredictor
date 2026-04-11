@@ -4,13 +4,11 @@ from . import (
     common,
     mean_reversion,
     orb,
-    routing,
     sma,
     trend_following,
     volatility_breakout,
 )
 from .common import *  # noqa: F401,F403
-from .routing import *  # noqa: F401,F403
 
 # Backward-compatible aliases for existing imports.
 BACKTEST_FAST_WINDOW = sma.BACKTEST_FAST_WINDOW
@@ -58,7 +56,6 @@ ORB_BREAKOUT_BUFFER_VALUES = orb.BREAKOUT_BUFFER_VALUES
 
 __all__ = [
     "common",
-    "routing",
     "sma",
     "mean_reversion",
     "trend_following",

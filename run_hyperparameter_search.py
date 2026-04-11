@@ -3,6 +3,7 @@
 import time
 from collections import defaultdict
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -292,6 +293,9 @@ def _emit_sensitivity_outputs(
     search_result: Any,
     objective: str,
     strategy_name: str,
+    *,
+    matrix_output_path: Path,
+    heatmap_output_path: Path,
 ) -> None:
     """Emit sensitivity matrix and heatmap if strategy supports it (i.e., SMA)."""
     if strategy_name != "sma_crossover":
@@ -304,15 +308,68 @@ def _emit_sensitivity_outputs(
         fast_windows=FAST_WINDOWS,
         slow_windows=SLOW_WINDOWS,
     )
-    SENSITIVITY_MATRIX_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    matrix.to_csv(SENSITIVITY_MATRIX_OUTPUT_PATH)
+    matrix_output_path.parent.mkdir(parents=True, exist_ok=True)
+    matrix.to_csv(matrix_output_path)
     save_sensitivity_heatmap(
         matrix,
-        SENSITIVITY_HEATMAP_OUTPUT_PATH,
+        heatmap_output_path,
         metric_name=objective,
     )
-    print(f"Sensitivity matrix saved to: {SENSITIVITY_MATRIX_OUTPUT_PATH}")
-    print(f"Sensitivity heatmap saved to: {SENSITIVITY_HEATMAP_OUTPUT_PATH}")
+    print(f"Sensitivity matrix saved to: {matrix_output_path}")
+    print(f"Sensitivity heatmap saved to: {heatmap_output_path}")
+
+
+def _sanitize_for_filename(value: str) -> str:
+    """Create filename-safe token from symbol/timeframe strings."""
+    return value.replace("/", "_").replace(" ", "_").replace(":", "_")
+
+
+def _emit_top_sensitivity_outputs(
+    successful_results: list[tuple[str, str, str, GenericSearchResult]],
+    objective: str,
+    *,
+    top_k: int = 3,
+) -> None:
+    """Emit sensitivity artifacts only for the top-k ranked combinations."""
+    ranked = sorted(
+        successful_results,
+        key=lambda item: float(item[3].best_objective_value),
+        reverse=True,
+    )
+    top_ranked = ranked[:top_k]
+
+    for rank, (strategy_name, symbol, timeframe, result) in enumerate(
+        top_ranked,
+        start=1,
+    ):
+        if strategy_name != "sma_crossover" or result.study is None:
+            continue
+
+        symbol_token = _sanitize_for_filename(symbol)
+        timeframe_token = _sanitize_for_filename(timeframe)
+
+        matrix_output_path = SENSITIVITY_MATRIX_OUTPUT_PATH.with_name(
+            f"{SENSITIVITY_MATRIX_OUTPUT_PATH.stem}_top{rank}_"
+            f"{strategy_name}_{symbol_token}_{timeframe_token}"
+            f"{SENSITIVITY_MATRIX_OUTPUT_PATH.suffix}"
+        )
+        heatmap_output_path = SENSITIVITY_HEATMAP_OUTPUT_PATH.with_name(
+            f"{SENSITIVITY_HEATMAP_OUTPUT_PATH.stem}_top{rank}_"
+            f"{strategy_name}_{symbol_token}_{timeframe_token}"
+            f"{SENSITIVITY_HEATMAP_OUTPUT_PATH.suffix}"
+        )
+
+        print(
+            f"Generating sensitivity artifacts for top {rank}: "
+            f"{strategy_name} {symbol} {timeframe}"
+        )
+        _emit_sensitivity_outputs(
+            result,
+            objective,
+            strategy_name,
+            matrix_output_path=matrix_output_path,
+            heatmap_output_path=heatmap_output_path,
+        )
 
 
 def _print_regime_breakdown(price: pd.Series, strategy_returns: pd.Series) -> None:
@@ -458,9 +515,6 @@ def _run_single_pass(
 
     # Print top combinations
     _print_top_combinations(search_result, SCAN_OBJECTIVE)
-
-    # Emit sensitivity outputs (SMA-specific)
-    _emit_sensitivity_outputs(search_result, SCAN_OBJECTIVE, strategy_name)
 
     trials_path, summary_path = persist_search_artifacts(
         search_result,
@@ -947,6 +1001,11 @@ def main() -> None:
     batch_config_path = persist_batch_config_snapshot(
         output_dir=RESULTS_DIR,
         snapshot=_build_batch_config_snapshot(),
+    )
+    _emit_top_sensitivity_outputs(
+        successful_results,
+        SCAN_OBJECTIVE,
+        top_k=3,
     )
 
     print(f"Leaderboard saved to: {leaderboard_path}")
