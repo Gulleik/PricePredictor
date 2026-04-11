@@ -546,7 +546,11 @@ def _run_wfo(
 
         # Run in-sample scan with all parameter combinations
         ohlc_kwargs_is: dict[str, pd.Series] = {}
-        if HYPERPARAM_SEARCH_STRATEGY in {"trend_following", "volatility_breakout", "orb"}:
+        if HYPERPARAM_SEARCH_STRATEGY in {
+            "trend_following",
+            "volatility_breakout",
+            "orb",
+        }:
             if market_data_is is not None:
                 ohlc_kwargs_is = {
                     "high": market_data_is["high"],
@@ -580,7 +584,11 @@ def _run_wfo(
 
         # Run out-of-sample with best in-sample parameters
         ohlc_kwargs_oos: dict[str, pd.Series] = {}
-        if HYPERPARAM_SEARCH_STRATEGY in {"trend_following", "volatility_breakout", "orb"}:
+        if HYPERPARAM_SEARCH_STRATEGY in {
+            "trend_following",
+            "volatility_breakout",
+            "orb",
+        }:
             if market_data_oos is not None:
                 ohlc_kwargs_oos = {
                     "high": market_data_oos["high"],
