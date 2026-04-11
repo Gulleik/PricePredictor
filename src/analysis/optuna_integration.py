@@ -12,8 +12,9 @@ import numpy as np
 import pandas as pd
 
 from src.analysis.annualization import periods_per_year_from_freq
-from src.config import StrategyName
+from src.config import KELLY_FACTOR, StrategyName
 from src.models.metrics import compute_advanced_metrics
+from src.models.risk import compute_kelly_fraction
 from src.strategies import get_strategy_module
 from src.strategies.sma_crossover import run
 
@@ -68,6 +69,33 @@ def _build_sampler(sampler_name: str, seed: int, startup_trials: int) -> Any:
         )
 
     raise ValueError(f"Unknown OPTUNA_SAMPLER: {sampler_name}. Use 'tpe' or 'random'.")
+
+
+def _estimate_kelly_from_returns(returns: pd.Series) -> float:
+    """Estimate a conservative Kelly fraction from bar returns."""
+    clean = returns.dropna()
+    if clean.empty:
+        return 0.0
+
+    wins = clean[clean > 0]
+    losses = clean[clean < 0]
+
+    if wins.empty or losses.empty:
+        return 0.0
+
+    win_rate = float((clean > 0).mean())
+    avg_win = float(wins.mean())
+    avg_loss = float(abs(losses.mean()))
+
+    if avg_win <= 0 or avg_loss <= 0:
+        return 0.0
+
+    return compute_kelly_fraction(
+        win_rate=win_rate,
+        avg_win=avg_win,
+        avg_loss=avg_loss,
+        kelly_factor=KELLY_FACTOR,
+    )
 
 
 def optimize_strategy_parameters(
@@ -178,6 +206,27 @@ def optimize_strategy_parameters(
             )
             # Different strategies return different tuple lengths
             pf = result[0] if isinstance(result, tuple) else result
+
+            # Re-run with Kelly-sized position weights derived from trial returns.
+            kelly_fraction = _estimate_kelly_from_returns(pf.returns())
+            if kelly_fraction > 0:
+                position_sizes = (kelly_fraction * init_cash / price).astype(float)
+                kelly_result = strategy_module.run(
+                    price,
+                    init_cash=init_cash,
+                    next_bar_execution=next_bar_execution,
+                    max_size=max_size_array,
+                    position_sizes=position_sizes,
+                    portfolio_freq=portfolio_freq,
+                    **friction_kwargs,
+                    **run_kwargs,
+                    **trial_params,
+                )
+                pf = (
+                    kelly_result[0]
+                    if isinstance(kelly_result, tuple)
+                    else kelly_result
+                )
         except Exception as exc:
             trial.set_user_attr("error", str(exc))
             return float("-inf")

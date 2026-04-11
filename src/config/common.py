@@ -110,8 +110,8 @@ SURVIVORSHIP_FAIL_FAST = False
 # Execution fidelity & risk settings (Milestone 3)
 ENABLE_NEXT_BAR_EXECUTION = True  # Shift signals to next bar (lookahead safety)
 ENABLE_FRICTION_MODEL = True  # Toggle friction costs on/off
-BROKER_COMMISSION_PCT = 0.001  # 0.1% per-trade commission
-BROKER_FIXED_FEE = 1.0  # $1 flat fee per trade
+BROKER_COMMISSION_PCT = 0.00055  # 0.055% per-trade commission
+BROKER_FIXED_FEE = 0.0  # $0 flat fee per trade
 BROKER_SLIPPAGE_PCT = 0.002  # 0.2% slippage (bid-ask spread)
 MAX_VOLUME_PARTICIPATION = 0.10  # 10% of bar volume max position size
 KELLY_FACTOR = 0.25  # Conservative: 25% of theoretical Kelly
