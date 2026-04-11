@@ -43,15 +43,6 @@ class _DummyTrial:
         self.user_attrs = {"invalid_combo": False}
 
 
-class _DummyTrial:
-    """Mock Optuna trial for testing."""
-
-    def __init__(self, params: dict, value: float) -> None:
-        self.params = params
-        self.value = value
-        self.user_attrs = {"invalid_combo": False}
-
-
 class _DummyRunPortfolio:
     """Mock portfolio result from run() function."""
 
