@@ -34,6 +34,39 @@ def _isolate_sensitivity_outputs(monkeypatch, tmp_path) -> None:
     )
 
 
+@pytest.fixture(autouse=True)
+def _default_single_combo_universe(monkeypatch, request) -> None:
+    """Keep legacy tests deterministic by defaulting to one combo."""
+    if request.node.name == "test_batch_quick_mode_uses_subset":
+        return
+
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "_build_batch_universe",
+        lambda: [
+            (
+                run_hyperparameter_search.HYPERPARAM_SEARCH_STRATEGY,
+                run_hyperparameter_search.HYPERPARAM_SYMBOL,
+                run_hyperparameter_search.DEFAULT_TIMEFRAME,
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "persist_leaderboard",
+        lambda *args, **kwargs: (
+            run_hyperparameter_search.RESULTS_DIR / "leaderboard.csv"
+        ),
+    )
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "persist_batch_config_snapshot",
+        lambda *args, **kwargs: (
+            run_hyperparameter_search.RESULTS_DIR / "batch_config.json"
+        ),
+    )
+
+
 class _DummyTrial:
     """Mock Optuna trial for testing."""
 
@@ -613,3 +646,131 @@ def test_trial_metric_series_keeps_best_value_for_duplicate_params() -> None:
     assert float(metric_series.loc[(10, 40)]) == pytest.approx(1.10)
     assert float(metric_series.loc[(5, 30)]) == pytest.approx(0.90)
     assert (20, 20) not in metric_series.index
+
+
+def test_batch_iterates_full_matrix(monkeypatch) -> None:
+    """Main should execute every combo and persist a leaderboard."""
+    combos = [
+        ("sma_crossover", "BTC/USD", "1h"),
+        ("mean_reversion", "ETH/USD", "4h"),
+    ]
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "_build_batch_universe",
+        lambda: combos,
+    )
+
+    calls: list[tuple[str, str, str]] = []
+
+    def fake_run_single_combo(*, strategy_name: str, symbol: str, timeframe: str):
+        calls.append((strategy_name, symbol, timeframe))
+        return GenericSearchResult(
+            study=None,
+            best_params={"x": 1},
+            best_objective_value=1.0,
+            best_metrics={
+                "sharpe_ratio": 1.0,
+                "sortino_ratio": 1.0,
+                "calmar_ratio": 1.0,
+                "max_drawdown": -0.1,
+                "max_drawdown_duration": 1,
+                "total_return": 0.1,
+            },
+            strategy_name=strategy_name,
+        )
+
+    leaderboard_payload = {"rows": None}
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "_run_single_combo",
+        fake_run_single_combo,
+    )
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "persist_leaderboard",
+        lambda rows, **kwargs: (
+            leaderboard_payload.update({"rows": rows})
+            or run_hyperparameter_search.RESULTS_DIR / "leaderboard.csv"
+        ),
+    )
+
+    run_hyperparameter_search.main()
+
+    assert calls == combos
+    assert leaderboard_payload["rows"] is not None
+    assert len(leaderboard_payload["rows"]) == 2
+
+
+def test_batch_failure_isolation(monkeypatch) -> None:
+    """A failing combo should be skipped while others still complete."""
+    combos = [
+        ("sma_crossover", "BTC/USD", "1h"),
+        ("mean_reversion", "ETH/USD", "1h"),
+        ("orb", "SOL/USD", "4h"),
+    ]
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "_build_batch_universe",
+        lambda: combos,
+    )
+
+    def fake_run_single_combo(*, strategy_name: str, symbol: str, timeframe: str):
+        if strategy_name == "mean_reversion":
+            return None
+        return GenericSearchResult(
+            study=None,
+            best_params={"x": 1},
+            best_objective_value=1.0,
+            best_metrics={
+                "sharpe_ratio": 1.0,
+                "sortino_ratio": 1.0,
+                "calmar_ratio": 1.0,
+                "max_drawdown": -0.1,
+                "max_drawdown_duration": 1,
+                "total_return": 0.1,
+            },
+            strategy_name=strategy_name,
+        )
+
+    captured = {"rows": []}
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "_run_single_combo",
+        fake_run_single_combo,
+    )
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "persist_leaderboard",
+        lambda rows, **kwargs: (
+            captured.update({"rows": rows})
+            or run_hyperparameter_search.RESULTS_DIR / "leaderboard.csv"
+        ),
+    )
+
+    run_hyperparameter_search.main()
+
+    assert len(captured["rows"]) == 2
+    assert all(row[0] != "mean_reversion" for row in captured["rows"])
+
+
+def test_batch_quick_mode_uses_subset(monkeypatch) -> None:
+    """Quick mode should use only configured quick subsets."""
+    monkeypatch.setattr(run_hyperparameter_search, "BATCH_MODE", "quick")
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "BATCH_QUICK_STRATEGIES",
+        ["sma_crossover"],
+    )
+    monkeypatch.setattr(
+        run_hyperparameter_search,
+        "BATCH_QUICK_SYMBOLS",
+        ["BTC/USD", "ETH/USD"],
+    )
+    monkeypatch.setattr(run_hyperparameter_search, "BATCH_QUICK_TIMEFRAMES", ["1h"])
+
+    combos = run_hyperparameter_search._build_batch_universe()
+
+    assert combos == [
+        ("sma_crossover", "BTC/USD", "1h"),
+        ("sma_crossover", "ETH/USD", "1h"),
+    ]

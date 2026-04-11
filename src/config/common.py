@@ -39,6 +39,41 @@ HYPERPARAM_SEARCH_STRATEGY: Literal[
     "orb",
 ] = "orb"  # Strategy to optimize in hyperparameter search
 
+# Milestone 7: full-matrix hyperparameter batch search
+HYPERPARAM_SYMBOLS = ["BTC/USD", "ETH/USD", "SOL/USD"]
+HYPERPARAM_TIMEFRAMES = ["1h", "4h"]
+HYPERPARAM_STRATEGIES: list[
+    Literal[
+        "sma_crossover",
+        "mean_reversion",
+        "trend_following",
+        "volatility_breakout",
+        "orb",
+    ]
+] = [
+    "sma_crossover",
+    "mean_reversion",
+    "trend_following",
+    "volatility_breakout",
+    "orb",
+]
+
+BATCH_MODE: Literal["quick", "full"] = "full"
+BATCH_QUICK_SYMBOLS = ["BTC/USD"]
+BATCH_QUICK_TIMEFRAMES = ["1h"]
+BATCH_QUICK_STRATEGIES: list[
+    Literal[
+        "sma_crossover",
+        "mean_reversion",
+        "trend_following",
+        "volatility_breakout",
+        "orb",
+    ]
+] = [
+    "sma_crossover",
+    "mean_reversion",
+]
+
 # Milestone 5: systematic search and metrics defaults
 OPTUNA_SAMPLER: Literal["tpe", "random"] = "tpe"
 OPTUNA_N_TRIALS = 50

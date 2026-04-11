@@ -414,3 +414,57 @@ def persist_search_artifacts(
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
     return trials_path, summary_path
+
+
+def persist_leaderboard(
+    results: list[tuple[str, str, str, GenericSearchResult]],
+    *,
+    output_dir: Path,
+    objective: str,
+) -> Path:
+    """Persist a ranked CSV leaderboard across batch combinations."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    leaderboard_path = output_dir / f"{timestamp}_leaderboard.csv"
+
+    rows: list[dict[str, Any]] = []
+    for strategy, symbol, timeframe, result in results:
+        rows.append(
+            {
+                "strategy": strategy,
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "objective": objective,
+                "objective_score": float(result.best_objective_value),
+                "sharpe_ratio": float(result.best_metrics.get("sharpe_ratio", 0.0)),
+                "sortino_ratio": float(result.best_metrics.get("sortino_ratio", 0.0)),
+                "calmar_ratio": float(result.best_metrics.get("calmar_ratio", 0.0)),
+                "max_drawdown": float(result.best_metrics.get("max_drawdown", 0.0)),
+                "max_drawdown_duration": int(
+                    result.best_metrics.get("max_drawdown_duration", 0)
+                ),
+                "total_return": float(result.best_metrics.get("total_return", 0.0)),
+                "best_params": json.dumps(result.best_params, sort_keys=True),
+            }
+        )
+
+    leaderboard_df = pd.DataFrame(rows)
+    if not leaderboard_df.empty:
+        leaderboard_df = leaderboard_df.sort_values(
+            by="objective_score", ascending=False
+        )
+    leaderboard_df.to_csv(leaderboard_path, index=False)
+    return leaderboard_path
+
+
+def persist_batch_config_snapshot(
+    *,
+    output_dir: Path,
+    snapshot: dict[str, Any],
+) -> Path:
+    """Persist batch-level configuration used by a matrix run."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    snapshot_path = output_dir / f"{timestamp}_batch_config.json"
+    snapshot_path.write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
+    return snapshot_path
