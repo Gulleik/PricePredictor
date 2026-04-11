@@ -403,21 +403,23 @@ def _run_single_pass(
     print()
 
     # Run best parameters on full dataset
-    run_args = [price]
+    run_kwargs: dict[str, pd.Series] = {}
     if HYPERPARAM_SEARCH_STRATEGY in {
         "trend_following",
         "volatility_breakout",
         "orb",
     }:
-        run_args.extend([market_data["high"], market_data["low"]])
+        run_kwargs["high"] = market_data["high"]
+        run_kwargs["low"] = market_data["low"]
 
     best_pf = strategy_module.run(
-        *run_args,
+        price,
         init_cash=DEFAULT_INIT_CASH,
         next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
         max_size=max_size_array,
         portfolio_freq=DEFAULT_TIMEFRAME,
         **friction_kwargs,
+        **run_kwargs,
         **best_params,
     )
     if isinstance(best_pf, tuple):
@@ -615,20 +617,22 @@ def _run_wfo(
         else:
             best_params = {list(param_space.keys())[0]: best_param}
 
-        run_args_best = [price]
+        run_kwargs_best: dict[str, pd.Series] = {}
         if HYPERPARAM_SEARCH_STRATEGY in {
             "trend_following",
             "volatility_breakout",
             "orb",
         }:
-            run_args_best.extend([market_data["high"], market_data["low"]])
+            run_kwargs_best["high"] = market_data["high"]
+            run_kwargs_best["low"] = market_data["low"]
 
         best_pf = strategy_module.run(
-            *run_args_best,
+            price,
             init_cash=DEFAULT_INIT_CASH,
             next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
             max_size=max_size_array,
             **friction_kwargs,
+            **run_kwargs_best,
             **best_params,
         )
         if isinstance(best_pf, tuple):
