@@ -112,6 +112,51 @@ def generate_position_sizes(
     return position_sizes
 
 
+def estimate_kelly_from_portfolio(portfolio: object) -> float:
+    """
+    Estimate Kelly fraction from actual portfolio trade records.
+
+    More accurate than signal-based estimation because it accounts for
+    friction, execution costs, and actual position sizing dynamics.
+
+    Args:
+        portfolio: VectorBT Portfolio object with closed trades.
+
+    Returns:
+        Kelly fraction computed from actual trade PnL; bounded to [0, 1].
+        Returns 0.0 if no closed trades or unable to compute.
+    """
+    try:
+        trade_records = portfolio.trades.records
+        if trade_records.empty or len(trade_records) == 0:
+            return 0.0
+
+        pnl = trade_records['pnl'].values
+        if len(pnl) == 0:
+            return 0.0
+
+        wins = (pnl > 0).sum()
+        losses = (pnl < 0).sum()
+
+        if wins == 0 or losses == 0:
+            return 0.0
+
+        win_rate = wins / len(pnl)
+        avg_win = pnl[pnl > 0].mean()
+        avg_loss = np.abs(pnl[pnl < 0]).mean()
+
+        kelly_frac = compute_kelly_fraction(
+            win_rate=win_rate,
+            avg_win=avg_win,
+            avg_loss=avg_loss,
+            kelly_factor=1.0,  # Raw Kelly before scaling
+        )
+
+        return float(np.clip(kelly_frac, 0.0, 1.0))
+    except Exception:
+        return 0.0
+
+
 def estimate_conservative_kelly(
     entries: pd.Series,
     exits: pd.Series,
@@ -119,6 +164,10 @@ def estimate_conservative_kelly(
 ) -> float:
     """
     Estimate a conservative Kelly fraction from signal-based trade metrics.
+
+    DEPRECATED: This method is inaccurate because it only measures raw
+    entry→exit price deltas and ignores friction, execution, and actual
+    position sizing dynamics. Use estimate_kelly_from_portfolio() instead.
 
     Uses a simple heuristic: count signal pairs as trades, measure price moves
     between entry and exit, and compute win rate from positive moves.

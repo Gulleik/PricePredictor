@@ -42,6 +42,7 @@ from src.date_range import get_default_date_range
 from src.models.broker import BrokerModel
 from src.models.risk import (
     estimate_conservative_kelly,
+    estimate_kelly_from_portfolio,
     generate_position_sizes,
 )
 from src.strategies import get_strategy_module
@@ -182,21 +183,23 @@ def main() -> None:
     else:
         raise ValueError(f"Unsupported ACTIVE_STRATEGY: {ACTIVE_STRATEGY}")
 
-    # Compute Kelly sizing from signals aligned to actual execution timing.
+    # Compute Kelly sizing **from actual portfolio trades** (more accurate than signal-based).
+    # The baseline run shows real trade dynamics including friction and execution.
     pf_kelly = None
     kelly_raw = 0.0
     kelly_scaled = 0.0
     if ACTIVE_STRATEGY == "sma_crossover":
-        entries = fast_ma.ma_crossed_above(slow_ma)
-        exits = fast_ma.ma_crossed_below(slow_ma)
-        if ENABLE_NEXT_BAR_EXECUTION:
-            entries = entries.astype(bool).shift(1, fill_value=False)
-            exits = exits.astype(bool).shift(1, fill_value=False)
-
-        kelly_raw = estimate_conservative_kelly(entries, exits, price)
+        # Estimate Kelly from actual portfolio trades (not signal pairs)
+        kelly_raw = estimate_kelly_from_portfolio(pf)
         kelly_scaled = kelly_raw * KELLY_FACTOR
 
         if kelly_scaled > 0:
+            entries = fast_ma.ma_crossed_above(slow_ma)
+            exits = fast_ma.ma_crossed_below(slow_ma)
+            if ENABLE_NEXT_BAR_EXECUTION:
+                entries = entries.astype(bool).shift(1, fill_value=False)
+                exits = exits.astype(bool).shift(1, fill_value=False)
+
             position_sizes = generate_position_sizes(
                 entries,
                 price,
