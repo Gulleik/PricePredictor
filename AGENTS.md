@@ -106,6 +106,12 @@ Error handling and safety:
 
 ## Validation Expectations
 
+For any code changes:
+
+- Always run lint and format checks before finishing.
+- Required command: `python -m ruff check .`.
+- Required command: `python -m ruff format --check .`.
+
 For strategy or backtest changes:
 
 - Verify scripts still run without runtime params.

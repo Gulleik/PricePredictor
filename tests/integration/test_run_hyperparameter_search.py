@@ -176,10 +176,7 @@ def test_main_uses_config_values(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
         run_hyperparameter_search,
         "persist_search_artifacts",
-        lambda *args, **kwargs: (
-            run_hyperparameter_search.RESULTS_DIR / "trials.csv",
-            run_hyperparameter_search.RESULTS_DIR / "summary.json",
-        ),
+        lambda *args, **kwargs: run_hyperparameter_search.RESULTS_DIR / "trials.csv",
     )
     monkeypatch.setattr(
         run_hyperparameter_search,

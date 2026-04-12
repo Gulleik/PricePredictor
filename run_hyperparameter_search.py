@@ -516,7 +516,7 @@ def _run_single_pass(
     # Print top combinations
     _print_top_combinations(search_result, SCAN_OBJECTIVE)
 
-    trials_path, summary_path = persist_search_artifacts(
+    trials_path = persist_search_artifacts(
         search_result,
         output_dir=RESULTS_DIR,
         objective=SCAN_OBJECTIVE,
@@ -527,7 +527,6 @@ def _run_single_pass(
         ),
     )
     print(f"Optuna trials saved to: {trials_path}")
-    print(f"Run summary saved to: {summary_path}")
 
     strategy_returns = best_pf.returns()
     _print_regime_breakdown(price, strategy_returns)

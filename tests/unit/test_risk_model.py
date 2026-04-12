@@ -4,7 +4,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.models.risk import compute_kelly_fraction, generate_position_sizes
+from src.models.risk import (
+    compute_kelly_fraction,
+    estimate_kelly_from_portfolio,
+    generate_position_sizes,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -219,3 +223,50 @@ class TestGeneratePositionSizes:
 
         with pytest.raises(ValueError, match="same length"):
             generate_position_sizes(entries, price, kelly_fraction=0.5, init_cash=10000)
+
+
+class TestEstimateKellyFromPortfolio:
+    """Test Kelly estimation from portfolio trade records."""
+
+    def test_estimate_from_trade_pnl(self) -> None:
+        """Estimator should compute Kelly from realized trade PnL."""
+
+        records = pd.DataFrame(
+            {
+                "pnl": [100.0, -20.0, 80.0, -10.0],
+            }
+        )
+        portfolio = type(
+            "PortfolioMock",
+            (),
+            {"trades": type("TradesMock", (), {"records": records})()},
+        )()
+
+        kelly = estimate_kelly_from_portfolio(portfolio)
+
+        # win_rate=0.5, avg_win=90, avg_loss=15 => Kelly ~= 0.4166667
+        assert kelly == pytest.approx(0.4166666667, rel=1e-6)
+
+    def test_estimate_returns_zero_on_missing_trade_data(self) -> None:
+        """Estimator should safely return 0.0 if trade records are unavailable."""
+        portfolio = object()
+        assert estimate_kelly_from_portfolio(portfolio) == 0.0
+
+    def test_estimate_returns_zero_on_all_wins_or_losses(self) -> None:
+        """Estimator requires both winners and losers for stable Kelly calculation."""
+        wins_only = pd.DataFrame({"pnl": [10.0, 5.0, 1.0]})
+        losses_only = pd.DataFrame({"pnl": [-10.0, -5.0, -1.0]})
+
+        wins_portfolio = type(
+            "PortfolioMock",
+            (),
+            {"trades": type("TradesMock", (), {"records": wins_only})()},
+        )()
+        losses_portfolio = type(
+            "PortfolioMock",
+            (),
+            {"trades": type("TradesMock", (), {"records": losses_only})()},
+        )()
+
+        assert estimate_kelly_from_portfolio(wins_portfolio) == 0.0
+        assert estimate_kelly_from_portfolio(losses_portfolio) == 0.0

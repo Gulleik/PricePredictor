@@ -41,7 +41,6 @@ from src.data import get_close_price_series, load_crypto_bars
 from src.date_range import get_default_date_range
 from src.models.broker import BrokerModel
 from src.models.risk import (
-    estimate_conservative_kelly,
     estimate_kelly_from_portfolio,
     generate_position_sizes,
 )
@@ -183,7 +182,8 @@ def main() -> None:
     else:
         raise ValueError(f"Unsupported ACTIVE_STRATEGY: {ACTIVE_STRATEGY}")
 
-    # Compute Kelly sizing **from actual portfolio trades** (more accurate than signal-based).
+    # Compute Kelly sizing from actual portfolio trades.
+    # This is more accurate than signal-pair estimation.
     # The baseline run shows real trade dynamics including friction and execution.
     pf_kelly = None
     kelly_raw = 0.0

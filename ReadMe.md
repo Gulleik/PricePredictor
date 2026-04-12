@@ -54,6 +54,15 @@ git config core.hooksPath .githooks
 
 The repository includes a `pre-push` hook that runs the full test suite before push.
 
+## Development Validation
+
+After making code changes, always run lint and formatting checks before finishing work:
+
+```powershell
+python -m ruff check .
+python -m ruff format --check .
+```
+
 ## Environment Variables
 
 Create a `.env` file in the repository root:

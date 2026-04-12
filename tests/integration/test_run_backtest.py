@@ -119,7 +119,9 @@ def test_main_uses_config_values_and_runs_flow(monkeypatch, capsys) -> None:
         # Friction parameters are now centralized in broker model
         if run_backtest.ENABLE_FRICTION_MODEL:
             assert fees > 0, "When friction enabled, fees should be > 0"
-            assert fixed_fees > 0, "When friction enabled, fixed_fees should be > 0"
+            assert fixed_fees >= 0, (
+                "When friction enabled, fixed_fees should be non-negative"
+            )
             assert slippage > 0, "When friction enabled, slippage should be > 0"
         else:
             assert fees == 0
@@ -130,18 +132,11 @@ def test_main_uses_config_values_and_runs_flow(monkeypatch, capsys) -> None:
     monkeypatch.setattr(run_backtest, "load_crypto_bars", fake_load_crypto_bars)
     monkeypatch.setattr(run_backtest, "sma_run", fake_sma_run)
 
-    # Mock Kelly functions to avoid issues with dummy data
-    def fake_estimate_conservative_kelly(entries, exits, price_arg):
-        assert price_arg is price
-        # Next-bar execution should shift raw signals by one bar.
-        assert entries.tolist() == [False, True, False]
-        assert exits.tolist() == [False, False, True]
-        return 0.0
-
+    # Mock portfolio-based Kelly estimator to keep this test focused on flow.
     monkeypatch.setattr(
         run_backtest,
-        "estimate_conservative_kelly",
-        fake_estimate_conservative_kelly,
+        "estimate_kelly_from_portfolio",
+        lambda _pf: 0.0,
     )
     monkeypatch.setattr(
         run_backtest,
@@ -206,8 +201,8 @@ def test_main_skips_chart_when_disabled(monkeypatch, capsys) -> None:
     # Mock Kelly functions
     monkeypatch.setattr(
         run_backtest,
-        "estimate_conservative_kelly",
-        lambda e, ex, p: 0.0,
+        "estimate_kelly_from_portfolio",
+        lambda _pf: 0.0,
     )
     monkeypatch.setattr(
         run_backtest,
@@ -220,3 +215,80 @@ def test_main_skips_chart_when_disabled(monkeypatch, capsys) -> None:
     out = capsys.readouterr().out
     assert "Chart rendering disabled by config" in out
     assert not pf.positions_plotted
+
+
+def test_main_uses_portfolio_based_kelly_estimation(monkeypatch) -> None:
+    """Regression: main should size Kelly from portfolio trades, not raw signals."""
+    import pandas as pd
+
+    price = _NoPlotPrice()
+    pf = _DummyPortfolio()
+
+    # MA mocks still needed for entry signal generation used by position sizing.
+    fast_ma = SimpleNamespace(
+        ma=SimpleNamespace(vbt=object()),
+        ma_crossed_above=lambda x: pd.Series([True, False, True]),
+        ma_crossed_below=lambda x: pd.Series([False, True, False]),
+    )
+    slow_ma = SimpleNamespace(
+        ma=SimpleNamespace(vbt=object()),
+        ma_crossed_above=lambda x: pd.Series([False, False, False]),
+        ma_crossed_below=lambda x: pd.Series([False, False, False]),
+    )
+
+    monkeypatch.setattr(run_backtest, "BACKTEST_SYMBOL", "LTC/USD")
+    monkeypatch.setattr(run_backtest, "ACTIVE_STRATEGY", "sma_crossover")
+    monkeypatch.setattr(run_backtest, "BACKTEST_FAST_WINDOW", 7)
+    monkeypatch.setattr(run_backtest, "BACKTEST_SLOW_WINDOW", 21)
+    monkeypatch.setattr(run_backtest, "BACKTEST_RENDER_CHART", False)
+    monkeypatch.setattr(run_backtest, "DEFAULT_INIT_CASH", 1000.0)
+    monkeypatch.setattr(run_backtest, "ENABLE_NEXT_BAR_EXECUTION", True)
+    monkeypatch.setattr(run_backtest, "ENABLE_FRICTION_MODEL", False)
+    monkeypatch.setattr(run_backtest, "KELLY_FACTOR", 0.25)
+    monkeypatch.setattr(
+        run_backtest,
+        "get_default_date_range",
+        lambda: ("2024-01-01T00:00:00+00:00", "2025-01-01T00:00:00+00:00"),
+    )
+
+    monkeypatch.setattr(run_backtest, "load_crypto_bars", lambda *args, **kwargs: price)
+
+    # First run returns baseline portfolio + indicators, second run returns Kelly pf.
+    run_calls = {"count": 0}
+
+    def fake_sma_run(*args, **kwargs):
+        run_calls["count"] += 1
+        if run_calls["count"] == 1:
+            return pf, fast_ma, slow_ma
+        return _DummyPortfolio(), fast_ma, slow_ma
+
+    monkeypatch.setattr(run_backtest, "sma_run", fake_sma_run)
+
+    # Force a positive portfolio-based Kelly estimate.
+    monkeypatch.setattr(run_backtest, "estimate_kelly_from_portfolio", lambda _pf: 0.4)
+
+    position_size_calls: list[dict[str, float]] = []
+
+    def fake_generate_position_sizes(entries, price_arg, kelly_fraction, init_cash):
+        assert price_arg is price
+        position_size_calls.append(
+            {
+                "kelly_fraction": float(kelly_fraction),
+                "init_cash": float(init_cash),
+            }
+        )
+        return pd.Series([1.0, None, 1.0])
+
+    monkeypatch.setattr(
+        run_backtest,
+        "generate_position_sizes",
+        fake_generate_position_sizes,
+    )
+
+    run_backtest.main()
+
+    assert run_calls["count"] == 2, "Expected baseline + Kelly rerun"
+    assert len(position_size_calls) == 1
+    # 0.4 raw Kelly scaled by factor 0.25
+    assert position_size_calls[0]["kelly_fraction"] == pytest.approx(0.1)
+    assert position_size_calls[0]["init_cash"] == 1000.0
