@@ -131,7 +131,7 @@ def estimate_kelly_from_portfolio(portfolio: object) -> float:
         if trade_records.empty or len(trade_records) == 0:
             return 0.0
 
-        pnl = trade_records['pnl'].values
+        pnl = trade_records["pnl"].values
         if len(pnl) == 0:
             return 0.0
 

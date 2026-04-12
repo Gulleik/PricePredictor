@@ -51,9 +51,7 @@ HYPERPARAM_TOP_N = 5
 # Milestone 7: full-matrix hyperparameter batch search
 HYPERPARAM_SYMBOLS = ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD", "DOGE/USD"]
 HYPERPARAM_TIMEFRAMES = ["1h", "15m", "5m"]
-HYPERPARAM_STRATEGIES: list[
-    StrategyName
-] = [
+HYPERPARAM_STRATEGIES: list[StrategyName] = [
     "sma_crossover",
     "mean_reversion",
     "trend_following",
@@ -64,9 +62,7 @@ HYPERPARAM_STRATEGIES: list[
 BATCH_MODE: Literal["quick", "full"] = "full"
 BATCH_QUICK_SYMBOLS = ["BTC/USD"]
 BATCH_QUICK_TIMEFRAMES = ["1h"]
-BATCH_QUICK_STRATEGIES: list[
-    StrategyName
-] = [
+BATCH_QUICK_STRATEGIES: list[StrategyName] = [
     "sma_crossover",
     "mean_reversion",
 ]
