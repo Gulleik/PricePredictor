@@ -9,15 +9,21 @@ StrategyName = Literal[
     "trend_following",
     "volatility_breakout",
     "orb",
+    "ema_ribbon_scalp",
+    "bb_rsi_mean_reversion",
+    "momentum_scalp",
 ]
 
-ACTIVE_STRATEGY: StrategyName = "sma_crossover"
+ACTIVE_STRATEGY: StrategyName = "momentum_scalp"
 ENABLED_STRATEGIES: tuple[StrategyName, ...] = (
     "sma_crossover",
     "mean_reversion",
     "trend_following",
     "volatility_breakout",
     "orb",
+    "ema_ribbon_scalp",
+    "bb_rsi_mean_reversion",
+    "momentum_scalp",
 )
 
 # Default symbols for crypto backtesting
@@ -57,14 +63,15 @@ HYPERPARAM_STRATEGIES: list[StrategyName] = [
     "trend_following",
     "volatility_breakout",
     "orb",
+    "ema_ribbon_scalp",
+    "bb_rsi_mean_reversion",
 ]
 
-BATCH_MODE: Literal["quick", "full"] = "full"
-BATCH_QUICK_SYMBOLS = ["BTC/USD"]
-BATCH_QUICK_TIMEFRAMES = ["1h"]
+BATCH_MODE: Literal["quick", "full"] = "quick"
+BATCH_QUICK_SYMBOLS = ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD", "DOGE/USD"]
+BATCH_QUICK_TIMEFRAMES = ["15m", "5m"]
 BATCH_QUICK_STRATEGIES: list[StrategyName] = [
-    "sma_crossover",
-    "mean_reversion",
+    "momentum_scalp",
 ]
 
 # Milestone 5: systematic search and metrics defaults

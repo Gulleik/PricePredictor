@@ -8,11 +8,21 @@ from src.config import (
     BACKTEST_RENDER_CHART,
     BACKTEST_SLOW_WINDOW,
     BACKTEST_SYMBOL,
+    BB_RSI_OVERBOUGHT,
+    BB_RSI_OVERSOLD,
+    BB_RSI_RSI_WINDOW,
+    BB_RSI_STD,
+    BB_RSI_WINDOW,
     BROKER_COMMISSION_PCT,
     BROKER_FIXED_FEE,
     BROKER_SLIPPAGE_PCT,
     DEFAULT_INIT_CASH,
     DEFAULT_TIMEFRAME,
+    EMA_RIBBON_ENTRY_COOLDOWN_BARS,
+    EMA_RIBBON_FAST_WINDOW,
+    EMA_RIBBON_MEDIUM_WINDOW,
+    EMA_RIBBON_PULLBACK_RECLAIM,
+    EMA_RIBBON_SLOW_WINDOW,
     ENABLE_FRICTION_MODEL,
     ENABLE_NEXT_BAR_EXECUTION,
     KELLY_FACTOR,
@@ -25,9 +35,32 @@ from src.config import (
     MEAN_REVERSION_USE_BOLLINGER,
     MEAN_REVERSION_VOL_LOOKBACK,
     MEAN_REVERSION_VOL_MAX_ANNUALIZED,
+    MOMENTUM_SCALP_ATR_WINDOW,
+    MOMENTUM_SCALP_EMA_FAST,
+    MOMENTUM_SCALP_EMA_MEDIUM,
+    MOMENTUM_SCALP_EMA_SLOW,
+    MOMENTUM_SCALP_ENTRY_COOLDOWN_BARS,
+    MOMENTUM_SCALP_MACD_FAST,
+    MOMENTUM_SCALP_MACD_SIGNAL,
+    MOMENTUM_SCALP_MACD_SLOW,
+    MOMENTUM_SCALP_RSI_OVERBOUGHT,
+    MOMENTUM_SCALP_RSI_OVERSOLD,
+    MOMENTUM_SCALP_RSI_PERIOD,
+    MOMENTUM_SCALP_SL_ATR_MULTIPLE,
+    MOMENTUM_SCALP_TP1_MULTIPLE,
+    MOMENTUM_SCALP_TP2_MULTIPLE,
+    MOMENTUM_SCALP_TP3_TRAIL_MULTIPLE,
+    MOMENTUM_SCALP_VOL_THRESHOLD,
+    MOMENTUM_SCALP_VOLUME_WINDOW,
     ORB_ALLOW_SHORT,
     ORB_BREAKOUT_BUFFER,
     ORB_RANGE_BARS,
+    SCALP_ATR_MULTIPLE,
+    SCALP_ATR_WINDOW,
+    SCALP_FEES,
+    SCALP_RISK_FRACTION,
+    SCALP_SLIPPAGE,
+    SCALP_TP_R_MULTIPLE,
     TREND_ATR_STOP_MULTIPLE,
     TREND_ATR_WINDOW,
     TREND_EMA_FAST_WINDOW,
@@ -179,6 +212,81 @@ def main() -> None:
             "ORB High": range_high,
             "ORB Low": range_low,
         }
+    elif ACTIVE_STRATEGY == "ema_ribbon_scalp":
+        pf = strategy_module.ema_ribbon_scalp(
+            close=price,
+            high=market_data["high"],
+            low=market_data["low"],
+            init_cash=DEFAULT_INIT_CASH,
+            ema_fast=EMA_RIBBON_FAST_WINDOW,
+            ema_medium=EMA_RIBBON_MEDIUM_WINDOW,
+            ema_slow=EMA_RIBBON_SLOW_WINDOW,
+            pullback_reclaim=EMA_RIBBON_PULLBACK_RECLAIM,
+            entry_cooldown_bars=EMA_RIBBON_ENTRY_COOLDOWN_BARS,
+            atr_window=SCALP_ATR_WINDOW,
+            atr_multiple=SCALP_ATR_MULTIPLE,
+            risk_fraction=SCALP_RISK_FRACTION,
+            tp_r_multiple=SCALP_TP_R_MULTIPLE,
+            fees=SCALP_FEES if ENABLE_FRICTION_MODEL else 0.0,
+            slippage=SCALP_SLIPPAGE if ENABLE_FRICTION_MODEL else 0.0,
+            fixed_fees=BROKER_FIXED_FEE if ENABLE_FRICTION_MODEL else 0.0,
+            next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
+            portfolio_freq=DEFAULT_TIMEFRAME,
+        )
+        indicators = {}
+    elif ACTIVE_STRATEGY == "momentum_scalp":
+        pf = strategy_module.run(
+            close=price,
+            high=market_data["high"],
+            low=market_data["low"],
+            init_cash=DEFAULT_INIT_CASH,
+            ema_fast=MOMENTUM_SCALP_EMA_FAST,
+            ema_medium=MOMENTUM_SCALP_EMA_MEDIUM,
+            ema_slow=MOMENTUM_SCALP_EMA_SLOW,
+            rsi_period=MOMENTUM_SCALP_RSI_PERIOD,
+            rsi_overbought=MOMENTUM_SCALP_RSI_OVERBOUGHT,
+            rsi_oversold=MOMENTUM_SCALP_RSI_OVERSOLD,
+            macd_fast=MOMENTUM_SCALP_MACD_FAST,
+            macd_slow=MOMENTUM_SCALP_MACD_SLOW,
+            macd_signal=MOMENTUM_SCALP_MACD_SIGNAL,
+            vol_window=MOMENTUM_SCALP_VOLUME_WINDOW,
+            vol_threshold=MOMENTUM_SCALP_VOL_THRESHOLD,
+            atr_window=MOMENTUM_SCALP_ATR_WINDOW,
+            sl_atr_multiple=MOMENTUM_SCALP_SL_ATR_MULTIPLE,
+            tp1_multiple=MOMENTUM_SCALP_TP1_MULTIPLE,
+            tp2_multiple=MOMENTUM_SCALP_TP2_MULTIPLE,
+            tp3_trail_multiple=MOMENTUM_SCALP_TP3_TRAIL_MULTIPLE,
+            entry_cooldown_bars=MOMENTUM_SCALP_ENTRY_COOLDOWN_BARS,
+            fees=SCALP_FEES if ENABLE_FRICTION_MODEL else 0.0,
+            slippage=SCALP_SLIPPAGE if ENABLE_FRICTION_MODEL else 0.0,
+            fixed_fees=BROKER_FIXED_FEE if ENABLE_FRICTION_MODEL else 0.0,
+            next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
+            max_size=max_size_array,
+            portfolio_freq=DEFAULT_TIMEFRAME,
+        )
+        indicators = {}
+    elif ACTIVE_STRATEGY == "bb_rsi_mean_reversion":
+        pf = strategy_module.bb_rsi_mean_reversion(
+            close=price,
+            high=market_data["high"],
+            low=market_data["low"],
+            init_cash=DEFAULT_INIT_CASH,
+            bb_window=BB_RSI_WINDOW,
+            bb_std=BB_RSI_STD,
+            rsi_window=BB_RSI_RSI_WINDOW,
+            rsi_oversold=BB_RSI_OVERSOLD,
+            rsi_overbought=BB_RSI_OVERBOUGHT,
+            atr_window=SCALP_ATR_WINDOW,
+            atr_multiple=SCALP_ATR_MULTIPLE,
+            risk_fraction=SCALP_RISK_FRACTION,
+            tp_r_multiple=SCALP_TP_R_MULTIPLE,
+            fees=SCALP_FEES if ENABLE_FRICTION_MODEL else 0.0,
+            slippage=SCALP_SLIPPAGE if ENABLE_FRICTION_MODEL else 0.0,
+            fixed_fees=BROKER_FIXED_FEE if ENABLE_FRICTION_MODEL else 0.0,
+            next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
+            portfolio_freq=DEFAULT_TIMEFRAME,
+        )
+        indicators = {}
     else:
         raise ValueError(f"Unsupported ACTIVE_STRATEGY: {ACTIVE_STRATEGY}")
 
@@ -225,7 +333,15 @@ def main() -> None:
 
     print("[3/4] Printing portfolio stats...")
     print("\n=== Baseline (Fixed Position Size) ===")
-    print(pf.stats())
+
+    # Handle CombinedPortfolio from momentum_scalp (no .stats() method)
+    if ACTIVE_STRATEGY == "momentum_scalp":
+        combined_pf = pf
+        print(f"\nCombined Portfolio Return: {combined_pf.total_return():.4f}")
+        print(f"Combined Portfolio Value (final): {combined_pf.value().iloc[-1]:.2f}")
+        print("Note: Detailed stats aggregation skipped for CombinedPortfolio.")
+    else:
+        print(pf.stats())
 
     if pf_kelly is not None:
         print("\n=== Kelly Criterion Sizing ===")

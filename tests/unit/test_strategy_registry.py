@@ -15,6 +15,8 @@ def test_registry_contains_milestone6_strategies() -> None:
         "trend_following",
         "volatility_breakout",
         "orb",
+        "ema_ribbon_scalp",
+        "bb_rsi_mean_reversion",
     }
     assert expected.issubset(set(STRATEGY_REGISTRY))
 

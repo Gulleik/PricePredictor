@@ -107,6 +107,12 @@ def _kelly_sized_run(
         raw_kelly = 0.0
 
     scaled_kelly = float(np.clip(raw_kelly * KELLY_FACTOR, 0.0, 1.0))
+
+    # If Kelly fraction is negligible, return the base portfolio to avoid
+    # a zero-sized re-run that always produces Sharpe=0.
+    if scaled_kelly < 1e-6:
+        return base_pf
+
     position_sizes = (scaled_kelly * init_cash / price).astype(float)
 
     kelly_result = strategy_module.run(
@@ -211,7 +217,14 @@ def optimize_strategy_parameters(
         try:
             # Build arguments based on strategy
             run_kwargs: dict[str, Any] = {}
-            if strategy_name in {"trend_following", "volatility_breakout", "orb"}:
+            if strategy_name in {
+                "trend_following",
+                "volatility_breakout",
+                "orb",
+                "ema_ribbon_scalp",
+                "bb_rsi_mean_reversion",
+                "momentum_scalp",
+            }:
                 if market_data is None:
                     raise ValueError(
                         f"Strategy '{strategy_name}' requires market_data (OHLC)"
@@ -274,9 +287,24 @@ def optimize_strategy_parameters(
         and np.isfinite(float(trial.value))
     ]
     if not valid_trials:
+        invalid_count = sum(
+            1
+            for trial in study.trials
+            if bool(trial.user_attrs.get("invalid_combo", False))
+        )
+        error_messages = [
+            str(trial.user_attrs.get("error", ""))
+            for trial in study.trials
+            if trial.user_attrs.get("error")
+        ]
+        unique_errors = list(dict.fromkeys(error_messages))
+        error_preview = "; ".join(unique_errors[:3]) if unique_errors else "none"
         raise ValueError(
             "Optuna search produced no valid trials. "
-            "Increase OPTUNA_N_TRIALS, relax constraints, or expand parameter ranges."
+            "Increase OPTUNA_N_TRIALS, relax constraints, or expand parameter ranges. "
+            "invalid_combo_trials="
+            f"{invalid_count}, error_trials={len(error_messages)}, "
+            f"sample_errors=[{error_preview}]"
         )
 
     best_trial = max(valid_trials, key=lambda trial: float(trial.value))

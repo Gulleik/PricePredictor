@@ -24,10 +24,19 @@ from src.config import (
     BATCH_QUICK_STRATEGIES,
     BATCH_QUICK_SYMBOLS,
     BATCH_QUICK_TIMEFRAMES,
+    BB_RSI_OVERBOUGHT_VALUES,
+    BB_RSI_OVERSOLD_VALUES,
+    BB_RSI_RSI_WINDOWS,
+    BB_RSI_STD_VALUES,
+    BB_RSI_WINDOWS,
     BROKER_COMMISSION_PCT,
     BROKER_FIXED_FEE,
     BROKER_SLIPPAGE_PCT,
     DEFAULT_INIT_CASH,
+    EMA_RIBBON_ENTRY_COOLDOWN_BARS_VALUES,
+    EMA_RIBBON_FAST_WINDOWS,
+    EMA_RIBBON_MEDIUM_WINDOWS,
+    EMA_RIBBON_SLOW_WINDOWS,
     ENABLE_FRICTION_MODEL,
     ENABLE_NEXT_BAR_EXECUTION,
     FAST_WINDOWS,
@@ -42,6 +51,17 @@ from src.config import (
     MEAN_REVERSION_OVERSOLD_VALUES,
     MEAN_REVERSION_RSI_PERIOD_VALUES,
     MEAN_REVERSION_VOL_MAX_VALUES,
+    MOMENTUM_SCALP_ATR_WINDOW_VALUES,
+    MOMENTUM_SCALP_EMA_FAST_WINDOWS,
+    MOMENTUM_SCALP_EMA_MEDIUM_WINDOWS,
+    MOMENTUM_SCALP_EMA_SLOW_WINDOWS,
+    MOMENTUM_SCALP_ENTRY_COOLDOWN_BARS_VALUES,
+    MOMENTUM_SCALP_RSI_PERIOD_VALUES,
+    MOMENTUM_SCALP_SL_ATR_MULTIPLE_VALUES,
+    MOMENTUM_SCALP_TP1_MULTIPLE_VALUES,
+    MOMENTUM_SCALP_TP2_MULTIPLE_VALUES,
+    MOMENTUM_SCALP_TP3_TRAIL_MULTIPLE_VALUES,
+    MOMENTUM_SCALP_VOL_THRESHOLD_VALUES,
     OPTUNA_N_TRIALS,
     OPTUNA_SAMPLER,
     OPTUNA_SEED,
@@ -154,6 +174,44 @@ def _build_param_space_and_constraints(
                 "breakout_buffer": ORB_BREAKOUT_BUFFER_VALUES,
             },
             None,
+        )
+    elif strategy_name == "ema_ribbon_scalp":
+        return (
+            {
+                "ema_fast": EMA_RIBBON_FAST_WINDOWS,
+                "ema_medium": EMA_RIBBON_MEDIUM_WINDOWS,
+                "ema_slow": EMA_RIBBON_SLOW_WINDOWS,
+                "entry_cooldown_bars": EMA_RIBBON_ENTRY_COOLDOWN_BARS_VALUES,
+            },
+            lambda p: p["ema_fast"] < p["ema_medium"] < p["ema_slow"],
+        )
+    elif strategy_name == "bb_rsi_mean_reversion":
+        return (
+            {
+                "bb_window": BB_RSI_WINDOWS,
+                "bb_std": BB_RSI_STD_VALUES,
+                "rsi_window": BB_RSI_RSI_WINDOWS,
+                "rsi_oversold": BB_RSI_OVERSOLD_VALUES,
+                "rsi_overbought": BB_RSI_OVERBOUGHT_VALUES,
+            },
+            lambda p: p["rsi_oversold"] < p["rsi_overbought"],
+        )
+    elif strategy_name == "momentum_scalp":
+        return (
+            {
+                "ema_fast": MOMENTUM_SCALP_EMA_FAST_WINDOWS,
+                "ema_medium": MOMENTUM_SCALP_EMA_MEDIUM_WINDOWS,
+                "ema_slow": MOMENTUM_SCALP_EMA_SLOW_WINDOWS,
+                "rsi_period": MOMENTUM_SCALP_RSI_PERIOD_VALUES,
+                "vol_threshold": MOMENTUM_SCALP_VOL_THRESHOLD_VALUES,
+                "atr_window": MOMENTUM_SCALP_ATR_WINDOW_VALUES,
+                "sl_atr_multiple": MOMENTUM_SCALP_SL_ATR_MULTIPLE_VALUES,
+                "tp1_multiple": MOMENTUM_SCALP_TP1_MULTIPLE_VALUES,
+                "tp2_multiple": MOMENTUM_SCALP_TP2_MULTIPLE_VALUES,
+                "tp3_trail_multiple": MOMENTUM_SCALP_TP3_TRAIL_MULTIPLE_VALUES,
+                "entry_cooldown_bars": (MOMENTUM_SCALP_ENTRY_COOLDOWN_BARS_VALUES),
+            },
+            lambda p: p["ema_fast"] < p["ema_medium"] < p["ema_slow"],
         )
     else:
         raise ValueError(f"Unknown strategy: {strategy_name}")
@@ -492,6 +550,9 @@ def _run_single_pass(
         "trend_following",
         "volatility_breakout",
         "orb",
+        "ema_ribbon_scalp",
+        "bb_rsi_mean_reversion",
+        "momentum_scalp",
     }:
         run_kwargs["high"] = market_data["high"]
         run_kwargs["low"] = market_data["low"]
@@ -510,7 +571,10 @@ def _run_single_pass(
         best_pf = best_pf[0]
 
     print("Best parameter stats:")
-    print(best_pf.stats())
+    if hasattr(best_pf, "stats"):
+        print(best_pf.stats())
+    else:
+        print(f"  Total Return: {best_pf.total_return():.4f}")
     print()
 
     # Print top combinations
@@ -570,6 +634,22 @@ def _build_scan_kwargs(
             "range_bars_values": param_space["range_bars"],
             "breakout_buffer_values": param_space["breakout_buffer"],
         }
+    if strategy_name == "ema_ribbon_scalp":
+        return {
+            "strategy_variant": "ema_ribbon_scalp",
+            "ema_fast_windows": param_space["ema_fast"],
+            "ema_medium_windows": param_space["ema_medium"],
+            "ema_slow_windows": param_space["ema_slow"],
+        }
+    if strategy_name == "bb_rsi_mean_reversion":
+        return {
+            "strategy_variant": "bb_rsi_mean_reversion",
+            "bb_windows": param_space["bb_window"],
+            "bb_std_values": param_space["bb_std"],
+            "rsi_windows": param_space["rsi_window"],
+            "oversold_values": param_space["rsi_oversold"],
+            "overbought_values": param_space["rsi_overbought"],
+        }
     raise ValueError(f"Unknown strategy for scan kwargs: {strategy_name}")
 
 
@@ -626,6 +706,8 @@ def _run_wfo(
             "trend_following",
             "volatility_breakout",
             "orb",
+            "ema_ribbon_scalp",
+            "bb_rsi_mean_reversion",
         }:
             market_data_is = market_data.iloc[window.is_start : window.is_end]
             market_data_oos = market_data.iloc[window.oos_start : window.oos_end]
@@ -636,6 +718,8 @@ def _run_wfo(
             "trend_following",
             "volatility_breakout",
             "orb",
+            "ema_ribbon_scalp",
+            "bb_rsi_mean_reversion",
         }:
             if market_data_is is not None:
                 ohlc_kwargs_is = {
@@ -675,6 +759,8 @@ def _run_wfo(
             "trend_following",
             "volatility_breakout",
             "orb",
+            "ema_ribbon_scalp",
+            "bb_rsi_mean_reversion",
         }:
             if market_data_oos is not None:
                 ohlc_kwargs_oos = {
@@ -735,7 +821,13 @@ def _run_wfo(
 
     # Run scan on full dataset with all parameters for sensitivity analysis
     ohlc_kwargs_full: dict[str, pd.Series] = {}
-    if strategy_name in {"trend_following", "volatility_breakout", "orb"}:
+    if strategy_name in {
+        "trend_following",
+        "volatility_breakout",
+        "orb",
+        "ema_ribbon_scalp",
+        "bb_rsi_mean_reversion",
+    }:
         ohlc_kwargs_full = {
             "high": market_data["high"],
             "low": market_data["low"],
@@ -771,6 +863,9 @@ def _run_wfo(
             "trend_following",
             "volatility_breakout",
             "orb",
+            "ema_ribbon_scalp",
+            "bb_rsi_mean_reversion",
+            "momentum_scalp",
         }:
             run_kwargs_best["high"] = market_data["high"]
             run_kwargs_best["low"] = market_data["low"]
