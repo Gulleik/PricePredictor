@@ -169,11 +169,11 @@ def _apply_entry_cooldown(signal: pd.Series, cooldown_bars: int) -> pd.Series:
     # Ensure signal is a Series and extract as numpy bool array
     if isinstance(signal, pd.DataFrame):
         signal = signal.iloc[:, 0]
-    
+
     raw = signal.fillna(False).astype(bool).to_numpy(dtype=np.bool_)
     filtered = np.zeros(len(raw), dtype=np.bool_)
     cooldown_remaining = 0
-    
+
     for idx in range(len(raw)):
         if cooldown_remaining > 0:
             cooldown_remaining -= 1
@@ -236,8 +236,16 @@ def _build_signals(
     )
     macd_raw = macd_obj.macd
     signal_raw = macd_obj.signal
-    macd_line = macd_raw.iloc[:, 0].values if isinstance(macd_raw, pd.DataFrame) else macd_raw.values
-    signal_line = signal_raw.iloc[:, 0].values if isinstance(signal_raw, pd.DataFrame) else signal_raw.values
+    macd_line = (
+        macd_raw.iloc[:, 0].values
+        if isinstance(macd_raw, pd.DataFrame)
+        else macd_raw.values
+    )
+    signal_line = (
+        signal_raw.iloc[:, 0].values
+        if isinstance(signal_raw, pd.DataFrame)
+        else signal_raw.values
+    )
     macd_hist = np.nan_to_num(macd_line - signal_line, nan=0.0)
 
     close_values = close.values
@@ -249,9 +257,12 @@ def _build_signals(
     price_above_fast_arr = close_values > ema_f
 
     long_entries = pd.Series(
-        ema_aligned_long_arr & rsi_aligned_long_arr & macd_aligned_long_arr & price_above_fast_arr,
+        ema_aligned_long_arr
+        & rsi_aligned_long_arr
+        & macd_aligned_long_arr
+        & price_above_fast_arr,
         index=close.index,
-        dtype=bool
+        dtype=bool,
     )
     long_entries = _apply_entry_cooldown(long_entries, int(entry_cooldown_bars))
 
@@ -262,9 +273,12 @@ def _build_signals(
     price_below_fast_arr = close_values < ema_f
 
     short_entries = pd.Series(
-        ema_aligned_short_arr & rsi_aligned_short_arr & macd_aligned_short_arr & price_below_fast_arr,
+        ema_aligned_short_arr
+        & rsi_aligned_short_arr
+        & macd_aligned_short_arr
+        & price_below_fast_arr,
         index=close.index,
-        dtype=bool
+        dtype=bool,
     )
     short_entries = _apply_entry_cooldown(short_entries, int(entry_cooldown_bars))
 
@@ -272,12 +286,12 @@ def _build_signals(
     long_exits = pd.Series(
         ((ema_f < ema_m) | (close_values < ema_f)).astype(bool),
         index=close.index,
-        dtype=bool
+        dtype=bool,
     )
     short_exits = pd.Series(
         ((ema_f > ema_m) | (close_values > ema_f)).astype(bool),
         index=close.index,
-        dtype=bool
+        dtype=bool,
     )
 
     # Warmup period - use explicit integer comparison, NOT Series
@@ -445,9 +459,11 @@ def run(
         tp2_size = position_sizes * tp2_allocation
         tp3_size = position_sizes * tp3_allocation
     else:
-        base_size = (init_cash * 0.005 / stop_distance.replace(0, np.nan)).fillna(
-            0.0
-        ).clip(lower=0.0)
+        base_size = (
+            (init_cash * 0.005 / stop_distance.replace(0, np.nan))
+            .fillna(0.0)
+            .clip(lower=0.0)
+        )
         tp1_size = base_size * tp1_allocation
         tp2_size = base_size * tp2_allocation
         tp3_size = base_size * tp3_allocation
