@@ -117,6 +117,7 @@ def run(
     max_size: Any | None = None,
     position_sizes: Any | None = None,
     portfolio_freq: str | None = None,
+    leverage: float = 1.0,
 ) -> tuple[Any, pd.Series, pd.Series]:
     """Run ORB strategy backtest."""
     long_entries, long_exits, short_entries, short_exits, range_high, range_low = (
@@ -153,7 +154,7 @@ def run(
             short_exits = apply_valid_mask(short_exits, valid_mask)
 
     portfolio_kwargs: dict[str, Any] = {
-        "init_cash": init_cash,
+        "init_cash": init_cash * leverage,
         "fees": fees,
         "fixed_fees": fixed_fees,
         "slippage": slippage,

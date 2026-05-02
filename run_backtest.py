@@ -4,6 +4,27 @@ import time
 
 from src.config import (
     ACTIVE_STRATEGY,
+    ADAPTIVE_MOMENTUM_ADX_PERIOD,
+    ADAPTIVE_MOMENTUM_ADX_THRESHOLD,
+    ADAPTIVE_MOMENTUM_ATR_PERCENTILE_MIN,
+    ADAPTIVE_MOMENTUM_ATR_PERCENTILE_WINDOW,
+    ADAPTIVE_MOMENTUM_ATR_WINDOW,
+    ADAPTIVE_MOMENTUM_EMA_FAST,
+    ADAPTIVE_MOMENTUM_EMA_MEDIUM,
+    ADAPTIVE_MOMENTUM_EMA_SLOW,
+    ADAPTIVE_MOMENTUM_ENTRY_COOLDOWN_BARS,
+    ADAPTIVE_MOMENTUM_MACD_FAST,
+    ADAPTIVE_MOMENTUM_MACD_SIGNAL,
+    ADAPTIVE_MOMENTUM_MACD_SLOW,
+    ADAPTIVE_MOMENTUM_RSI_OVERBOUGHT,
+    ADAPTIVE_MOMENTUM_RSI_OVERSOLD,
+    ADAPTIVE_MOMENTUM_RSI_PERIOD,
+    ADAPTIVE_MOMENTUM_SIGNAL_THRESHOLD,
+    ADAPTIVE_MOMENTUM_SL_ATR_MULTIPLE,
+    ADAPTIVE_MOMENTUM_TP1_MULTIPLE,
+    ADAPTIVE_MOMENTUM_TP2_TRAIL_MULTIPLE,
+    ADAPTIVE_MOMENTUM_VOL_THRESHOLD,
+    ADAPTIVE_MOMENTUM_VOLUME_WINDOW,
     BACKTEST_FAST_WINDOW,
     BACKTEST_RENDER_CHART,
     BACKTEST_SLOW_WINDOW,
@@ -26,6 +47,7 @@ from src.config import (
     ENABLE_FRICTION_MODEL,
     ENABLE_NEXT_BAR_EXECUTION,
     KELLY_FACTOR,
+    LEVERAGE,
     MAX_VOLUME_PARTICIPATION,
     MEAN_REVERSION_BB_STD,
     MEAN_REVERSION_BB_WINDOW,
@@ -101,6 +123,7 @@ def main() -> None:
         fixed_fee=BROKER_FIXED_FEE,
         slippage_pct=BROKER_SLIPPAGE_PCT,
         max_volume_participation=MAX_VOLUME_PARTICIPATION,
+        leverage=LEVERAGE,
     )
     max_size_array = broker.compute_max_size_array(
         market_data,
@@ -120,6 +143,7 @@ def main() -> None:
         "init_cash": DEFAULT_INIT_CASH,
         "next_bar_execution": ENABLE_NEXT_BAR_EXECUTION,
         "max_size": max_size_array,
+        "leverage": LEVERAGE,
         **friction_kwargs,
     }
 
@@ -232,6 +256,7 @@ def main() -> None:
             fixed_fees=BROKER_FIXED_FEE if ENABLE_FRICTION_MODEL else 0.0,
             next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
             portfolio_freq=DEFAULT_TIMEFRAME,
+            leverage=LEVERAGE,
         )
         indicators = {}
     elif ACTIVE_STRATEGY == "momentum_scalp":
@@ -239,6 +264,7 @@ def main() -> None:
             close=price,
             high=market_data["high"],
             low=market_data["low"],
+            volume=market_data["volume"],
             init_cash=DEFAULT_INIT_CASH,
             ema_fast=MOMENTUM_SCALP_EMA_FAST,
             ema_medium=MOMENTUM_SCALP_EMA_MEDIUM,
@@ -263,6 +289,44 @@ def main() -> None:
             next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
             max_size=max_size_array,
             portfolio_freq=DEFAULT_TIMEFRAME,
+            leverage=LEVERAGE,
+        )
+        indicators = {}
+    elif ACTIVE_STRATEGY == "adaptive_momentum":
+        pf = strategy_module.run(
+            close=price,
+            high=market_data["high"],
+            low=market_data["low"],
+            volume=market_data["volume"],
+            init_cash=DEFAULT_INIT_CASH,
+            ema_fast=ADAPTIVE_MOMENTUM_EMA_FAST,
+            ema_medium=ADAPTIVE_MOMENTUM_EMA_MEDIUM,
+            ema_slow=ADAPTIVE_MOMENTUM_EMA_SLOW,
+            rsi_period=ADAPTIVE_MOMENTUM_RSI_PERIOD,
+            rsi_overbought=ADAPTIVE_MOMENTUM_RSI_OVERBOUGHT,
+            rsi_oversold=ADAPTIVE_MOMENTUM_RSI_OVERSOLD,
+            macd_fast=ADAPTIVE_MOMENTUM_MACD_FAST,
+            macd_slow=ADAPTIVE_MOMENTUM_MACD_SLOW,
+            macd_signal=ADAPTIVE_MOMENTUM_MACD_SIGNAL,
+            vol_window=ADAPTIVE_MOMENTUM_VOLUME_WINDOW,
+            vol_threshold=ADAPTIVE_MOMENTUM_VOL_THRESHOLD,
+            signal_threshold=ADAPTIVE_MOMENTUM_SIGNAL_THRESHOLD,
+            adx_period=ADAPTIVE_MOMENTUM_ADX_PERIOD,
+            adx_threshold=ADAPTIVE_MOMENTUM_ADX_THRESHOLD,
+            atr_percentile_min=ADAPTIVE_MOMENTUM_ATR_PERCENTILE_MIN,
+            atr_percentile_window=ADAPTIVE_MOMENTUM_ATR_PERCENTILE_WINDOW,
+            atr_window=ADAPTIVE_MOMENTUM_ATR_WINDOW,
+            sl_atr_multiple=ADAPTIVE_MOMENTUM_SL_ATR_MULTIPLE,
+            tp1_multiple=ADAPTIVE_MOMENTUM_TP1_MULTIPLE,
+            tp2_trail_multiple=ADAPTIVE_MOMENTUM_TP2_TRAIL_MULTIPLE,
+            entry_cooldown_bars=ADAPTIVE_MOMENTUM_ENTRY_COOLDOWN_BARS,
+            fees=SCALP_FEES if ENABLE_FRICTION_MODEL else 0.0,
+            slippage=SCALP_SLIPPAGE if ENABLE_FRICTION_MODEL else 0.0,
+            fixed_fees=BROKER_FIXED_FEE if ENABLE_FRICTION_MODEL else 0.0,
+            next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
+            max_size=max_size_array,
+            portfolio_freq=DEFAULT_TIMEFRAME,
+            leverage=LEVERAGE,
         )
         indicators = {}
     elif ACTIVE_STRATEGY == "bb_rsi_mean_reversion":
@@ -285,6 +349,7 @@ def main() -> None:
             fixed_fees=BROKER_FIXED_FEE if ENABLE_FRICTION_MODEL else 0.0,
             next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
             portfolio_freq=DEFAULT_TIMEFRAME,
+            leverage=LEVERAGE,
         )
         indicators = {}
     else:
@@ -313,6 +378,7 @@ def main() -> None:
                 price,
                 kelly_scaled,
                 DEFAULT_INIT_CASH,
+                leverage=LEVERAGE,
             )
             pf_kelly, _, _ = sma_run(
                 price,
@@ -334,8 +400,8 @@ def main() -> None:
     print("[3/4] Printing portfolio stats...")
     print("\n=== Baseline (Fixed Position Size) ===")
 
-    # Handle CombinedPortfolio from momentum_scalp (no .stats() method)
-    if ACTIVE_STRATEGY == "momentum_scalp":
+    # Handle CombinedPortfolio / DualPortfolio (no .stats() method)
+    if ACTIVE_STRATEGY in {"momentum_scalp", "adaptive_momentum"}:
         combined_pf = pf
         print(f"\nCombined Portfolio Return: {combined_pf.total_return():.4f}")
         print(f"Combined Portfolio Value (final): {combined_pf.value().iloc[-1]:.2f}")

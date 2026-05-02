@@ -117,6 +117,7 @@ def ema_ribbon_scalp(
     position_sizes: pd.Series | np.ndarray | float | None = None,
     max_size: pd.Series | np.ndarray | float | None = None,
     portfolio_freq: str | None = None,
+    leverage: float = 1.0,
 ) -> Any:
     """Run EMA ribbon scalp strategy and return a VectorBT portfolio."""
     if not (ema_fast < ema_medium < ema_slow):
@@ -162,7 +163,7 @@ def ema_ribbon_scalp(
     size = (
         _coerce_size_series(position_sizes, index=close.index)
         if position_sizes is not None
-        else risk_size
+        else risk_size * leverage
     )
 
     return vbt.Portfolio.from_signals(
@@ -204,6 +205,7 @@ def bb_rsi_mean_reversion(
     position_sizes: pd.Series | np.ndarray | float | None = None,
     max_size: pd.Series | np.ndarray | float | None = None,
     portfolio_freq: str | None = None,
+    leverage: float = 1.0,
 ) -> Any:
     """Run BB/RSI mean-reversion strategy and return a VectorBT portfolio."""
     if bb_window <= 1:
@@ -255,7 +257,7 @@ def bb_rsi_mean_reversion(
     size = (
         _coerce_size_series(position_sizes, index=close.index)
         if position_sizes is not None
-        else risk_size
+        else risk_size * leverage
     )
 
     return vbt.Portfolio.from_signals(

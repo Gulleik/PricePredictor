@@ -20,6 +20,23 @@ from src.analysis.optuna_integration import (
 from src.analysis.sensitivity import build_sensitivity_matrix, save_sensitivity_heatmap
 from src.analysis.wfo import generate_wfo_windows
 from src.config import (
+    ADAPTIVE_MOMENTUM_ADX_PERIOD_VALUES,
+    ADAPTIVE_MOMENTUM_ADX_THRESHOLD_VALUES,
+    ADAPTIVE_MOMENTUM_ATR_PERCENTILE_MIN_VALUES,
+    ADAPTIVE_MOMENTUM_ATR_WINDOW_VALUES,
+    ADAPTIVE_MOMENTUM_EMA_FAST_WINDOWS,
+    ADAPTIVE_MOMENTUM_EMA_MEDIUM_WINDOWS,
+    ADAPTIVE_MOMENTUM_EMA_SLOW_WINDOWS,
+    ADAPTIVE_MOMENTUM_ENTRY_COOLDOWN_BARS_VALUES,
+    ADAPTIVE_MOMENTUM_MACD_FAST_VALUES,
+    ADAPTIVE_MOMENTUM_MACD_SIGNAL_VALUES,
+    ADAPTIVE_MOMENTUM_MACD_SLOW_VALUES,
+    ADAPTIVE_MOMENTUM_RSI_PERIOD_VALUES,
+    ADAPTIVE_MOMENTUM_SIGNAL_THRESHOLD_VALUES,
+    ADAPTIVE_MOMENTUM_SL_ATR_MULTIPLE_VALUES,
+    ADAPTIVE_MOMENTUM_TP1_MULTIPLE_VALUES,
+    ADAPTIVE_MOMENTUM_TP2_TRAIL_MULTIPLE_VALUES,
+    ADAPTIVE_MOMENTUM_VOL_THRESHOLD_VALUES,
     BATCH_MODE,
     BATCH_QUICK_STRATEGIES,
     BATCH_QUICK_SYMBOLS,
@@ -44,6 +61,7 @@ from src.config import (
     HYPERPARAM_SYMBOLS,
     HYPERPARAM_TIMEFRAMES,
     HYPERPARAM_TOP_N,
+    LEVERAGE,
     MAX_VOLUME_PARTICIPATION,
     MEAN_REVERSION_BB_STD_VALUES,
     MEAN_REVERSION_BB_WINDOW_VALUES,
@@ -56,6 +74,9 @@ from src.config import (
     MOMENTUM_SCALP_EMA_MEDIUM_WINDOWS,
     MOMENTUM_SCALP_EMA_SLOW_WINDOWS,
     MOMENTUM_SCALP_ENTRY_COOLDOWN_BARS_VALUES,
+    MOMENTUM_SCALP_MACD_FAST_VALUES,
+    MOMENTUM_SCALP_MACD_SIGNAL_VALUES,
+    MOMENTUM_SCALP_MACD_SLOW_VALUES,
     MOMENTUM_SCALP_RSI_PERIOD_VALUES,
     MOMENTUM_SCALP_SL_ATR_MULTIPLE_VALUES,
     MOMENTUM_SCALP_TP1_MULTIPLE_VALUES,
@@ -210,8 +231,40 @@ def _build_param_space_and_constraints(
                 "tp2_multiple": MOMENTUM_SCALP_TP2_MULTIPLE_VALUES,
                 "tp3_trail_multiple": MOMENTUM_SCALP_TP3_TRAIL_MULTIPLE_VALUES,
                 "entry_cooldown_bars": (MOMENTUM_SCALP_ENTRY_COOLDOWN_BARS_VALUES),
+                "macd_fast": MOMENTUM_SCALP_MACD_FAST_VALUES,
+                "macd_slow": MOMENTUM_SCALP_MACD_SLOW_VALUES,
+                "macd_signal": MOMENTUM_SCALP_MACD_SIGNAL_VALUES,
             },
-            lambda p: p["ema_fast"] < p["ema_medium"] < p["ema_slow"],
+            lambda p: (
+                p["ema_fast"] < p["ema_medium"] < p["ema_slow"]
+                and p["macd_fast"] < p["macd_slow"]
+            ),
+        )
+    elif strategy_name == "adaptive_momentum":
+        return (
+            {
+                "ema_fast": ADAPTIVE_MOMENTUM_EMA_FAST_WINDOWS,
+                "ema_medium": ADAPTIVE_MOMENTUM_EMA_MEDIUM_WINDOWS,
+                "ema_slow": ADAPTIVE_MOMENTUM_EMA_SLOW_WINDOWS,
+                "rsi_period": ADAPTIVE_MOMENTUM_RSI_PERIOD_VALUES,
+                "vol_threshold": ADAPTIVE_MOMENTUM_VOL_THRESHOLD_VALUES,
+                "signal_threshold": ADAPTIVE_MOMENTUM_SIGNAL_THRESHOLD_VALUES,
+                "adx_period": ADAPTIVE_MOMENTUM_ADX_PERIOD_VALUES,
+                "adx_threshold": ADAPTIVE_MOMENTUM_ADX_THRESHOLD_VALUES,
+                "atr_percentile_min": ADAPTIVE_MOMENTUM_ATR_PERCENTILE_MIN_VALUES,
+                "atr_window": ADAPTIVE_MOMENTUM_ATR_WINDOW_VALUES,
+                "sl_atr_multiple": ADAPTIVE_MOMENTUM_SL_ATR_MULTIPLE_VALUES,
+                "tp1_multiple": ADAPTIVE_MOMENTUM_TP1_MULTIPLE_VALUES,
+                "tp2_trail_multiple": ADAPTIVE_MOMENTUM_TP2_TRAIL_MULTIPLE_VALUES,
+                "entry_cooldown_bars": ADAPTIVE_MOMENTUM_ENTRY_COOLDOWN_BARS_VALUES,
+                "macd_fast": ADAPTIVE_MOMENTUM_MACD_FAST_VALUES,
+                "macd_slow": ADAPTIVE_MOMENTUM_MACD_SLOW_VALUES,
+                "macd_signal": ADAPTIVE_MOMENTUM_MACD_SIGNAL_VALUES,
+            },
+            lambda p: (
+                p["ema_fast"] < p["ema_medium"] < p["ema_slow"]
+                and p["macd_fast"] < p["macd_slow"]
+            ),
         )
     else:
         raise ValueError(f"Unknown strategy: {strategy_name}")
@@ -525,6 +578,7 @@ def _run_single_pass(
         max_size_array=max_size_array,
         param_constraints=param_constraints,
         market_data=market_data,
+        leverage=LEVERAGE,
     )
 
     best_params = search_result.best_params
@@ -553,9 +607,13 @@ def _run_single_pass(
         "ema_ribbon_scalp",
         "bb_rsi_mean_reversion",
         "momentum_scalp",
+        "adaptive_momentum",
     }:
         run_kwargs["high"] = market_data["high"]
         run_kwargs["low"] = market_data["low"]
+    if strategy_name in {"momentum_scalp", "adaptive_momentum"}:
+        if "volume" in market_data.columns:
+            run_kwargs["volume"] = market_data["volume"]
 
     best_pf = strategy_module.run(
         price,
@@ -563,6 +621,7 @@ def _run_single_pass(
         next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
         max_size=max_size_array,
         portfolio_freq=timeframe,
+        leverage=LEVERAGE,
         **friction_kwargs,
         **run_kwargs,
         **best_params,
@@ -708,6 +767,8 @@ def _run_wfo(
             "orb",
             "ema_ribbon_scalp",
             "bb_rsi_mean_reversion",
+            "momentum_scalp",
+            "adaptive_momentum",
         }:
             market_data_is = market_data.iloc[window.is_start : window.is_end]
             market_data_oos = market_data.iloc[window.oos_start : window.oos_end]
@@ -720,6 +781,8 @@ def _run_wfo(
             "orb",
             "ema_ribbon_scalp",
             "bb_rsi_mean_reversion",
+            "momentum_scalp",
+            "adaptive_momentum",
         }:
             if market_data_is is not None:
                 ohlc_kwargs_is = {
@@ -761,6 +824,8 @@ def _run_wfo(
             "orb",
             "ema_ribbon_scalp",
             "bb_rsi_mean_reversion",
+            "momentum_scalp",
+            "adaptive_momentum",
         }:
             if market_data_oos is not None:
                 ohlc_kwargs_oos = {
@@ -827,6 +892,8 @@ def _run_wfo(
         "orb",
         "ema_ribbon_scalp",
         "bb_rsi_mean_reversion",
+        "momentum_scalp",
+        "adaptive_momentum",
     }:
         ohlc_kwargs_full = {
             "high": market_data["high"],
@@ -866,9 +933,13 @@ def _run_wfo(
             "ema_ribbon_scalp",
             "bb_rsi_mean_reversion",
             "momentum_scalp",
+            "adaptive_momentum",
         }:
             run_kwargs_best["high"] = market_data["high"]
             run_kwargs_best["low"] = market_data["low"]
+        if strategy_name in {"momentum_scalp", "adaptive_momentum"}:
+            if "volume" in market_data.columns:
+                run_kwargs_best["volume"] = market_data["volume"]
 
         best_pf = strategy_module.run(
             price,
@@ -999,6 +1070,7 @@ def _run_single_combo(
             fixed_fee=BROKER_FIXED_FEE,
             slippage_pct=BROKER_SLIPPAGE_PCT,
             max_volume_participation=MAX_VOLUME_PARTICIPATION,
+            leverage=LEVERAGE,
         )
         max_size_array = broker.compute_max_size_array(
             market_data,

@@ -12,9 +12,10 @@ StrategyName = Literal[
     "ema_ribbon_scalp",
     "bb_rsi_mean_reversion",
     "momentum_scalp",
+    "adaptive_momentum",
 ]
 
-ACTIVE_STRATEGY: StrategyName = "momentum_scalp"
+ACTIVE_STRATEGY: StrategyName = "adaptive_momentum"
 ENABLED_STRATEGIES: tuple[StrategyName, ...] = (
     "sma_crossover",
     "mean_reversion",
@@ -24,6 +25,7 @@ ENABLED_STRATEGIES: tuple[StrategyName, ...] = (
     "ema_ribbon_scalp",
     "bb_rsi_mean_reversion",
     "momentum_scalp",
+    "adaptive_momentum",
 )
 
 # Default symbols for crypto backtesting
@@ -51,7 +53,7 @@ SCAN_OBJECTIVE: Literal[
     "total_return",
     "sortino_ratio",
     "calmar_ratio",
-] = "sharpe_ratio"
+] = "total_return"
 HYPERPARAM_TOP_N = 5
 
 # Milestone 7: full-matrix hyperparameter batch search
@@ -69,9 +71,15 @@ HYPERPARAM_STRATEGIES: list[StrategyName] = [
 
 BATCH_MODE: Literal["quick", "full"] = "quick"
 BATCH_QUICK_SYMBOLS = ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD", "DOGE/USD"]
-BATCH_QUICK_TIMEFRAMES = ["15m", "5m"]
+BATCH_QUICK_TIMEFRAMES = ["1h"]
 BATCH_QUICK_STRATEGIES: list[StrategyName] = [
-    "momentum_scalp",
+    "sma_crossover",
+    "mean_reversion",
+    "trend_following",
+    "volatility_breakout",
+    "orb",
+    "ema_ribbon_scalp",
+    "bb_rsi_mean_reversion",
 ]
 
 # Milestone 5: systematic search and metrics defaults
@@ -118,3 +126,4 @@ BROKER_FIXED_FEE = 0.0  # $0 flat fee per trade
 BROKER_SLIPPAGE_PCT = 0.002  # 0.2% slippage (bid-ask spread)
 MAX_VOLUME_PARTICIPATION = 0.10  # 10% of bar volume max position size
 KELLY_FACTOR = 0.5  # Conservative: 50% of theoretical Kelly
+LEVERAGE = 50.0  # Leverage multiplier applied to position sizes (1.0 = no leverage)

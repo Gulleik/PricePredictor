@@ -83,6 +83,7 @@ def _kelly_sized_run(
     friction_kwargs: dict[str, float],
     run_kwargs: dict[str, Any],
     trial_params: dict[str, Any],
+    leverage: float = 1.0,
 ) -> Any:
     """Run strategy and evaluate only the Kelly-sized portfolio.
 
@@ -95,6 +96,7 @@ def _kelly_sized_run(
         next_bar_execution=next_bar_execution,
         max_size=max_size_array,
         portfolio_freq=portfolio_freq,
+        leverage=leverage,
         **friction_kwargs,
         **run_kwargs,
         **trial_params,
@@ -113,7 +115,7 @@ def _kelly_sized_run(
     if scaled_kelly < 1e-6:
         return base_pf
 
-    position_sizes = (scaled_kelly * init_cash / price).astype(float)
+    position_sizes = (scaled_kelly * init_cash * leverage / price).astype(float)
 
     kelly_result = strategy_module.run(
         price,
@@ -122,6 +124,7 @@ def _kelly_sized_run(
         max_size=max_size_array,
         position_sizes=position_sizes,
         portfolio_freq=portfolio_freq,
+        leverage=leverage,
         **friction_kwargs,
         **run_kwargs,
         **trial_params,
@@ -148,6 +151,7 @@ def optimize_strategy_parameters(
     max_size_array: np.ndarray | None,
     param_constraints: Callable[[dict[str, Any]], bool] | None = None,
     market_data: pd.DataFrame | None = None,
+    leverage: float = 1.0,
 ) -> GenericSearchResult:
     """Generic strategy optimizer using Optuna.
 
@@ -224,6 +228,7 @@ def optimize_strategy_parameters(
                 "ema_ribbon_scalp",
                 "bb_rsi_mean_reversion",
                 "momentum_scalp",
+                "adaptive_momentum",
             }:
                 if market_data is None:
                     raise ValueError(
@@ -231,6 +236,10 @@ def optimize_strategy_parameters(
                     )
                 run_kwargs["high"] = market_data["high"]
                 run_kwargs["low"] = market_data["low"]
+
+            if strategy_name in {"momentum_scalp", "adaptive_momentum"}:
+                if market_data is not None and "volume" in market_data.columns:
+                    run_kwargs["volume"] = market_data["volume"]
 
             pf = _kelly_sized_run(
                 strategy_module=strategy_module,
@@ -242,6 +251,7 @@ def optimize_strategy_parameters(
                 friction_kwargs=friction_kwargs,
                 run_kwargs=run_kwargs,
                 trial_params=trial_params,
+                leverage=leverage,
             )
         except Exception as exc:
             trial.set_user_attr("error", str(exc))

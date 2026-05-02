@@ -5,6 +5,7 @@ from typing import Any
 
 from src.config import StrategyName
 from src.strategies import (
+    adaptive_momentum,
     mean_reversion,
     momentum_scalp,
     orb,
@@ -23,6 +24,7 @@ STRATEGY_REGISTRY: Mapping[StrategyName, Any] = {
     "ema_ribbon_scalp": vectorbt_scalping,
     "bb_rsi_mean_reversion": vectorbt_scalping,
     "momentum_scalp": momentum_scalp,
+    "adaptive_momentum": adaptive_momentum,
 }
 
 

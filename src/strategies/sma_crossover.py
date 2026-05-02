@@ -28,6 +28,7 @@ def run(
     max_size: Any | None = None,
     position_sizes: Any | None = None,
     portfolio_freq: str | None = None,
+    leverage: float = 1.0,
 ) -> tuple[Any, Any, Any]:
     """
     Run SMA crossover backtest with optional execution fidelity modeling.
@@ -63,7 +64,7 @@ def run(
         exits = apply_valid_mask(exits, valid_mask)
 
     portfolio_kwargs: dict[str, Any] = {
-        "init_cash": init_cash,
+        "init_cash": init_cash * leverage,
         "fees": fees,
         "fixed_fees": fixed_fees,
         "slippage": slippage,

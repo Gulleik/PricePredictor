@@ -22,10 +22,15 @@ TP3_ALLOCATION = 0.30  # 30% of position
 RSI_OVERBOUGHT = 70.0
 RSI_OVERSOLD = 30.0
 
-# MACD fixed at standard settings (no tuning)
+# MACD defaults
 MACD_FAST = 12
 MACD_SLOW = 26
 MACD_SIGNAL = 9
+
+# MACD hyperparameter search ranges
+MACD_FAST_VALUES = [8, 12]
+MACD_SLOW_VALUES = [21, 26]
+MACD_SIGNAL_VALUES = [7, 9]
 
 # Volume analysis window (fixed)
 VOLUME_WINDOW = 20
@@ -37,7 +42,7 @@ EMA_SLOW_WINDOWS = [34, 55]
 RSI_PERIOD_VALUES = [5, 7, 9]
 VOL_THRESHOLD_VALUES = [1.2, 1.5, 2.0]
 ATR_WINDOW_VALUES = [10, 14]
-SL_ATR_MULTIPLE_VALUES = [0.75, 1.0, 1.5]
+SL_ATR_MULTIPLE_VALUES = [0.75, 1.0, 1.5, 2.0, 2.5]
 TP1_MULTIPLE_VALUES = [1.0, 1.5, 2.0]
 TP2_MULTIPLE_VALUES = [2.5, 3.0, 3.5]
 TP3_TRAIL_MULTIPLE_VALUES = [1.0, 1.5, 2.0]

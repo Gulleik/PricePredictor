@@ -67,31 +67,35 @@ def generate_position_sizes(
     price: pd.Series,
     kelly_fraction: float,
     init_cash: float,
+    leverage: float = 1.0,
 ) -> pd.Series:
     """
     Generate position size array for Kelly Criterion sizing.
 
     Produces a Series where:
-        - Entry bars have position size = kelly_fraction * init_cash / entry_price
+        - Entry bars: size = kelly_fraction * init_cash * leverage / price
         - Non-entry bars have NaN (VectorBT interprets as "hold position")
-        - Notional per entry is bounded by init_cash (no leverage)
 
     Args:
         entries: Boolean Series indicating entry signals (True = entry, False = hold).
         price: Close price Series (aligned with entries).
         kelly_fraction: Optimal Kelly fraction from compute_kelly_fraction().
         init_cash: Initial bankroll in currency units.
+        leverage: Leverage multiplier applied to position sizes (default 1.0).
 
     Returns:
         Series with position size per bar; NaN for non-entry bars.
 
     Raises:
-        ValueError: If kelly_fraction not in [0, 1] or init_cash <= 0.
+        ValueError: If kelly_fraction not in [0, 1], init_cash <= 0,
+            or leverage <= 0.
     """
     if not 0 <= kelly_fraction <= 1:
         raise ValueError(f"kelly_fraction must be in [0, 1], got {kelly_fraction}")
     if init_cash <= 0:
         raise ValueError(f"init_cash must be > 0, got {init_cash}")
+    if leverage <= 0:
+        raise ValueError(f"leverage must be > 0, got {leverage}")
 
     if len(entries) != len(price):
         raise ValueError(
@@ -106,7 +110,7 @@ def generate_position_sizes(
     entry_mask = entries.astype(bool)
     if entry_mask.any():
         entry_prices = price[entry_mask]
-        kelly_position = (kelly_fraction * init_cash) / entry_prices
+        kelly_position = (kelly_fraction * init_cash * leverage) / entry_prices
         position_sizes[entry_mask] = kelly_position
 
     return position_sizes

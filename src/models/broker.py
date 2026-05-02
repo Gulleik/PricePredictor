@@ -15,6 +15,7 @@ class BrokerModel:
     fixed_fee: float
     slippage_pct: float
     max_volume_participation: float
+    leverage: float = 1.0
 
     def build_friction_kwargs(self, enable_friction: bool) -> dict[str, float]:
         """
@@ -73,6 +74,7 @@ class BrokerConfig(Protocol):
     BROKER_FIXED_FEE: float
     BROKER_SLIPPAGE_PCT: float
     MAX_VOLUME_PARTICIPATION: float
+    LEVERAGE: float
 
 
 def build_broker_model_from_config(config_module: BrokerConfig) -> BrokerModel:
@@ -92,4 +94,5 @@ def build_broker_model_from_config(config_module: BrokerConfig) -> BrokerModel:
         fixed_fee=config_module.BROKER_FIXED_FEE,
         slippage_pct=config_module.BROKER_SLIPPAGE_PCT,
         max_volume_participation=config_module.MAX_VOLUME_PARTICIPATION,
+        leverage=config_module.LEVERAGE,
     )

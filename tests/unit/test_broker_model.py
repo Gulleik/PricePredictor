@@ -140,6 +140,7 @@ class TestBrokerModel:
             BROKER_FIXED_FEE=2.0,
             BROKER_SLIPPAGE_PCT=0.003,
             MAX_VOLUME_PARTICIPATION=0.15,
+            LEVERAGE=10.0,
         )
 
         broker = build_broker_model_from_config(config)
@@ -148,3 +149,4 @@ class TestBrokerModel:
         assert broker.fixed_fee == 2.0
         assert broker.slippage_pct == 0.003
         assert broker.max_volume_participation == 0.15
+        assert broker.leverage == 10.0

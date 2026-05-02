@@ -79,6 +79,7 @@ def run(
     max_size: Any | None = None,
     position_sizes: Any | None = None,
     portfolio_freq: str | None = None,
+    leverage: float = 1.0,
 ) -> tuple[Any, pd.Series, pd.Series, pd.Series, pd.Series]:
     """Run EMA trend-following backtest."""
     entries, exits, fast_ema, slow_ema, atr, trailing_stop = _signals_from_series(
@@ -100,7 +101,7 @@ def run(
         exits = apply_valid_mask(exits, valid_mask)
 
     portfolio_kwargs: dict[str, Any] = {
-        "init_cash": init_cash,
+        "init_cash": init_cash * leverage,
         "fees": fees,
         "fixed_fees": fixed_fees,
         "slippage": slippage,

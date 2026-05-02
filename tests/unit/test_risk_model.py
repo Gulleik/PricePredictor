@@ -133,7 +133,7 @@ class TestGeneratePositionSizes:
         assert sizes.iloc[0] == expected_size, f"Size should be {expected_size}"
 
     def test_position_sizing_no_leverage(self) -> None:
-        """Test that position notional never exceeds init_cash."""
+        """Test that position notional equals init_cash with no leverage."""
         price = pd.Series([1.0, 1.0])  # Very cheap price
         entries = pd.Series([True, False])
         kelly_frac = 1.0  # Full Kelly
@@ -147,7 +147,49 @@ class TestGeneratePositionSizes:
         )
 
         notional = sizes.iloc[0] * price.iloc[0]
-        assert notional <= init_cash, "Entry notional should not exceed init_cash"
+        assert notional == init_cash, (
+            "Without leverage, notional should equal init_cash"
+        )
+
+    def test_position_sizing_with_leverage(self) -> None:
+        """Test that leverage scales position sizes correctly."""
+        price = pd.Series([100.0, 100.0])
+        entries = pd.Series([True, False])
+        kelly_frac = 0.5
+        init_cash = 10000.0
+        leverage = 20.0
+
+        sizes_no_lev = generate_position_sizes(
+            entries=entries,
+            price=price,
+            kelly_fraction=kelly_frac,
+            init_cash=init_cash,
+        )
+        sizes_lev = generate_position_sizes(
+            entries=entries,
+            price=price,
+            kelly_fraction=kelly_frac,
+            init_cash=init_cash,
+            leverage=leverage,
+        )
+
+        assert sizes_lev.iloc[0] == sizes_no_lev.iloc[0] * leverage
+        expected_notional = kelly_frac * init_cash * leverage
+        assert sizes_lev.iloc[0] * price.iloc[0] == expected_notional
+
+    def test_position_sizing_invalid_leverage(self) -> None:
+        """Test validation of leverage bounds."""
+        price = pd.Series([100.0])
+        entries = pd.Series([True])
+
+        with pytest.raises(ValueError, match="leverage must be"):
+            generate_position_sizes(
+                entries, price, kelly_fraction=0.5, init_cash=10000, leverage=0.0
+            )
+        with pytest.raises(ValueError, match="leverage must be"):
+            generate_position_sizes(
+                entries, price, kelly_fraction=0.5, init_cash=10000, leverage=-1.0
+            )
 
     def test_position_sizing_low_price_asset_units(self) -> None:
         """Low-priced assets should allow higher unit counts at same notional."""
