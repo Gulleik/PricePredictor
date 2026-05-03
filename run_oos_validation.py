@@ -34,56 +34,27 @@ from src.strategies import get_strategy_module
 
 VALIDATION_CONFIGS: list[dict[str, Any]] = [
     {
-        "strategy_name": "sma_crossover",
-        "symbol": "ETH/USD",
-        "timeframe": "1h",
-        "best_params": {"fast": 15, "slow": 50},
-    },
-    {
-        "strategy_name": "trend_following",
-        "symbol": "ETH/USD",
-        "timeframe": "1h",
-        "best_params": {
-            "fast_window": 8,
-            "slow_window": 35,
-            "atr_window": 10,
-            "atr_stop_multiple": 1.5,
-        },
-    },
-    {
-        "strategy_name": "mean_reversion",
-        "symbol": "DOGE/USD",
+        "strategy_name": "bb_rsi_mean_reversion",
+        "symbol": "BTC/USD",
         "timeframe": "1h",
         "best_params": {
             "bb_std": 1.5,
             "bb_window": 26,
-            "overbought": 65.0,
-            "oversold": 20.0,
-            "rsi_period": 18,
-            "vol_max_annualized": 1.5,
+            "rsi_overbought": 70.0,
+            "rsi_oversold": 20.0,
+            "rsi_window": 5,
         },
     },
     {
-        "strategy_name": "mean_reversion",
-        "symbol": "SOL/USD",
+        "strategy_name": "bb_rsi_mean_reversion",
+        "symbol": "ETH/USD",
         "timeframe": "1h",
         "best_params": {
             "bb_std": 1.5,
             "bb_window": 20,
-            "overbought": 65.0,
-            "oversold": 20.0,
-            "rsi_period": 8,
-            "vol_max_annualized": 1.0,
-        },
-    },
-    {
-        "strategy_name": "volatility_breakout",
-        "symbol": "ETH/USD",
-        "timeframe": "1h",
-        "best_params": {
-            "atr_min_fraction": 0.008,
-            "atr_window": 10,
-            "donchian_window": 30,
+            "rsi_overbought": 70.0,
+            "rsi_oversold": 30.0,
+            "rsi_window": 7,
         },
     },
 ]

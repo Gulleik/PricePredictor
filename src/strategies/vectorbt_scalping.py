@@ -369,7 +369,8 @@ def run_scan(
             fees=kwargs.get("fees", 0.0),
             fixed_fees=kwargs.get("fixed_fees", 0.0),
             slippage=kwargs.get("slippage", 0.0),
-            max_size=safe_max_size,
+            # Skip volume constraints during scan; apply them only to final runs.
+            max_size=None,
             freq=kwargs.get("portfolio_freq") or DEFAULT_TIMEFRAME,
         )
 
@@ -456,6 +457,7 @@ def run_scan(
         fees=kwargs.get("fees", 0.0),
         fixed_fees=kwargs.get("fixed_fees", 0.0),
         slippage=kwargs.get("slippage", 0.0),
-        max_size=safe_max_size,
+        # Skip volume constraints during scan; apply them only to final runs.
+        max_size=None,
         freq=kwargs.get("portfolio_freq") or DEFAULT_TIMEFRAME,
     )

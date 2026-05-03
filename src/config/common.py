@@ -73,12 +73,6 @@ BATCH_MODE: Literal["quick", "full"] = "quick"
 BATCH_QUICK_SYMBOLS = ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD", "DOGE/USD"]
 BATCH_QUICK_TIMEFRAMES = ["1h"]
 BATCH_QUICK_STRATEGIES: list[StrategyName] = [
-    "sma_crossover",
-    "mean_reversion",
-    "trend_following",
-    "volatility_breakout",
-    "orb",
-    "ema_ribbon_scalp",
     "bb_rsi_mean_reversion",
 ]
 
@@ -93,7 +87,7 @@ OPTUNA_STARTUP_TRIALS = 10
 RESULTS_DIR = Path("results")
 
 # Milestone 4: validation and sensitivity defaults
-WFO_ENABLED = False
+WFO_ENABLED = True
 WFO_MODE: Literal["auto", "preset", "manual"] = "auto"
 WFO_PRESET: Literal["quick", "balanced", "robust"] = "balanced"
 WFO_IS_WINDOW_BARS = 252
