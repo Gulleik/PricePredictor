@@ -110,6 +110,7 @@ def test_main_uses_config_values_and_runs_flow(monkeypatch, capsys) -> None:
         slippage=0,
         max_size=None,
         position_sizes=None,
+        leverage=1.0,
     ):
         assert price_arg is price
         assert fast == run_backtest.BACKTEST_FAST_WINDOW
@@ -269,7 +270,7 @@ def test_main_uses_portfolio_based_kelly_estimation(monkeypatch) -> None:
 
     position_size_calls: list[dict[str, float]] = []
 
-    def fake_generate_position_sizes(entries, price_arg, kelly_fraction, init_cash):
+    def fake_generate_position_sizes(entries, price_arg, kelly_fraction, init_cash, leverage=1.0):
         assert price_arg is price
         position_size_calls.append(
             {
