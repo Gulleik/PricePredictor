@@ -270,7 +270,9 @@ def test_main_uses_portfolio_based_kelly_estimation(monkeypatch) -> None:
 
     position_size_calls: list[dict[str, float]] = []
 
-    def fake_generate_position_sizes(entries, price_arg, kelly_fraction, init_cash, leverage=1.0):
+    def fake_generate_position_sizes(
+        entries, price_arg, kelly_fraction, init_cash, leverage=1.0
+    ):
         assert price_arg is price
         position_size_calls.append(
             {
