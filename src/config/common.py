@@ -127,3 +127,4 @@ BROKER_SLIPPAGE_PCT = 0.002  # 0.2% slippage (bid-ask spread)
 MAX_VOLUME_PARTICIPATION = 0.10  # 10% of bar volume max position size
 KELLY_FACTOR = 0.5  # Conservative: 50% of theoretical Kelly
 LEVERAGE = 50.0  # Leverage multiplier applied to position sizes (1.0 = no leverage)
+SAVE_OPTUNA_TRIALS = False  # Set to True to persist per-run Optuna trial CSVs

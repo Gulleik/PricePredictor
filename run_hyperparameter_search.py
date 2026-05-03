@@ -95,6 +95,7 @@ from src.config import (
     REGIME_LOOKBACK_SLOW,
     REGIME_SIDEWAYS_BAND,
     RESULTS_DIR,
+    SAVE_OPTUNA_TRIALS,
     SCAN_OBJECTIVE,
     SENSITIVITY_HEATMAP_OUTPUT_PATH,
     SENSITIVITY_MATRIX_OUTPUT_PATH,
@@ -648,8 +649,10 @@ def _run_single_pass(
             symbol=symbol,
             timeframe=timeframe,
         ),
+        save_trials=SAVE_OPTUNA_TRIALS,
     )
-    print(f"Optuna trials saved to: {trials_path}")
+    if trials_path is not None:
+        print(f"Optuna trials saved to: {trials_path}")
 
     strategy_returns = best_pf.returns()
     _print_regime_breakdown(price, strategy_returns)
@@ -989,6 +992,7 @@ def _run_wfo(
                 symbol=symbol,
                 timeframe=timeframe,
             ),
+            save_trials=SAVE_OPTUNA_TRIALS,
         )
         return summary_result
 

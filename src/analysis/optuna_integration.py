@@ -474,13 +474,16 @@ def persist_search_artifacts(
     output_dir: Path,
     objective: str,
     config_snapshot: dict[str, Any],
-) -> Path:
+    save_trials: bool = True,
+) -> Path | None:
     """Persist an Optuna trials CSV for traceable research runs.
 
     This intentionally does not publish summary JSON artifacts.
     """
     _ = objective
     _ = config_snapshot
+    if not save_trials:
+        return None
     output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
