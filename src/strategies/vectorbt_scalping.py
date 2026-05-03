@@ -361,14 +361,35 @@ def run_scan(
             entries_frame = entries_frame.vbt.fshift(1).fillna(False).astype(bool)
             exits_frame = exits_frame.vbt.fshift(1).fillna(False).astype(bool)
 
+        leverage = float(kwargs.get("leverage", 1.0))
+        init_cash = float(kwargs.get("init_cash", 10_000.0))
+        atr_window = int(kwargs.get("atr_window", 14))
+        atr_multiple = float(kwargs.get("atr_multiple", 1.5))
+        risk_fraction = float(kwargs.get("risk_fraction", 0.005))
+        tp_r_multiple = float(kwargs.get("tp_r_multiple", 2.0))
+        _, stop_distance, risk_size = _risk_arrays(
+            high,
+            low,
+            price,
+            init_cash=init_cash,
+            equity=kwargs.get("equity"),
+            atr_window=atr_window,
+            atr_multiple=atr_multiple,
+            risk_fraction=risk_fraction,
+        )
+        size = risk_size * leverage
+
         return vbt.Portfolio.from_signals(
             price,
             entries_frame,
             exits_frame,
-            init_cash=kwargs.get("init_cash", 10_000.0),
+            init_cash=init_cash,
             fees=kwargs.get("fees", 0.0),
             fixed_fees=kwargs.get("fixed_fees", 0.0),
             slippage=kwargs.get("slippage", 0.0),
+            size=size,
+            sl_stop=stop_distance,
+            tp_stop=stop_distance * tp_r_multiple,
             # Skip volume constraints during scan; apply them only to final runs.
             max_size=None,
             freq=kwargs.get("portfolio_freq") or DEFAULT_TIMEFRAME,
@@ -447,16 +468,37 @@ def run_scan(
         )
         short_exits_frame2 = short_exits_frame2.vbt.fshift(1).fillna(False).astype(bool)
 
+    leverage = float(kwargs.get("leverage", 1.0))
+    init_cash = float(kwargs.get("init_cash", 10_000.0))
+    atr_window = int(kwargs.get("atr_window", 14))
+    atr_multiple = float(kwargs.get("atr_multiple", 1.5))
+    risk_fraction = float(kwargs.get("risk_fraction", 0.005))
+    tp_r_multiple = float(kwargs.get("tp_r_multiple", 2.0))
+    _, stop_distance, risk_size = _risk_arrays(
+        high,
+        low,
+        price,
+        init_cash=init_cash,
+        equity=kwargs.get("equity"),
+        atr_window=atr_window,
+        atr_multiple=atr_multiple,
+        risk_fraction=risk_fraction,
+    )
+    size = risk_size * leverage
+
     return vbt.Portfolio.from_signals(
         price,
         entries=entries_frame2,
         exits=exits_frame2,
         short_entries=short_entries_frame2,
         short_exits=short_exits_frame2,
-        init_cash=kwargs.get("init_cash", 10_000.0),
+        init_cash=init_cash,
         fees=kwargs.get("fees", 0.0),
         fixed_fees=kwargs.get("fixed_fees", 0.0),
         slippage=kwargs.get("slippage", 0.0),
+        size=size,
+        sl_stop=stop_distance,
+        tp_stop=stop_distance * tp_r_multiple,
         # Skip volume constraints during scan; apply them only to final runs.
         max_size=None,
         freq=kwargs.get("portfolio_freq") or DEFAULT_TIMEFRAME,
