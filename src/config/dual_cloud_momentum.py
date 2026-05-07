@@ -1,0 +1,39 @@
+"""Configuration for Dual-Cloud Momentum strategy (HTF filter + LTF trigger)."""
+
+# Per-strategy timeframe override (15m LTF with 1h HTF resampled internally)
+BACKTEST_TIMEFRAME = "15m"
+
+# Single-run backtest defaults
+BACKTEST_TREND_EMA_FAST = 50
+BACKTEST_TREND_EMA_SLOW = 200
+BACKTEST_RSI_LENGTH = 14
+BACKTEST_RSI_LEVEL_LONG = 45
+BACKTEST_RSI_LEVEL_SHORT = 55
+BACKTEST_ATR_LENGTH = 14
+BACKTEST_SL_ATR_MULTIPLIER = 1.5
+BACKTEST_TP_FIB_1 = 0.618
+BACKTEST_TP_FIB_2 = 1.0
+BACKTEST_TP_FIB_3 = 1.272
+BACKTEST_TP_FIB_4 = 1.618
+BACKTEST_ENABLE_WEEKEND_TRADING = True
+
+# TP allocations (fixed, not tuned)
+TP1_ALLOCATION = 0.25
+TP2_ALLOCATION = 0.25
+TP3_ALLOCATION = 0.25
+TP4_ALLOCATION = 0.25
+
+# Hyperparameter search ranges (Optuna)
+TREND_EMA_FAST_VALUES = [21, 34, 50]
+TREND_EMA_SLOW_VALUES = [100, 150, 200]
+RSI_LENGTH_VALUES = [10, 14, 21]
+RSI_LEVEL_LONG_VALUES = [40, 45, 50]
+RSI_LEVEL_SHORT_VALUES = [50, 55, 60]
+ATR_LENGTH_VALUES = [10, 14, 21]
+SL_ATR_MULTIPLIER_VALUES = [1.0, 1.5, 2.0]
+TP_FIB_1_VALUES = [0.5, 0.618, 0.786]
+TP_FIB_2_VALUES = [1.0, 1.272]
+TP_FIB_3_VALUES = [1.272, 1.618]
+TP_FIB_4_VALUES = [1.618, 2.0, 2.618]
+
+# Constraint: trend_ema_fast < trend_ema_slow (enforced in strategy optimization)

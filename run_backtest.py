@@ -37,6 +37,19 @@ from src.config import (
     BROKER_COMMISSION_PCT,
     BROKER_FIXED_FEE,
     BROKER_SLIPPAGE_PCT,
+    DCM_ATR_LENGTH,
+    DCM_ENABLE_WEEKEND_TRADING,
+    DCM_RSI_LENGTH,
+    DCM_RSI_LEVEL_LONG,
+    DCM_RSI_LEVEL_SHORT,
+    DCM_SL_ATR_MULTIPLIER,
+    DCM_TIMEFRAME,
+    DCM_TP_FIB_1,
+    DCM_TP_FIB_2,
+    DCM_TP_FIB_3,
+    DCM_TP_FIB_4,
+    DCM_TREND_EMA_FAST,
+    DCM_TREND_EMA_SLOW,
     DEFAULT_INIT_CASH,
     DEFAULT_TIMEFRAME,
     EMA_RIBBON_ENTRY_COOLDOWN_BARS,
@@ -352,6 +365,49 @@ def main() -> None:
             leverage=LEVERAGE,
         )
         indicators = {}
+    elif ACTIVE_STRATEGY == "dual_cloud_momentum":
+        # DCM uses 15m data; reload at strategy-specific timeframe
+        dcm_market_data = load_crypto_bars(
+            symbol,
+            start=start,
+            end=end,
+            timeframe=DCM_TIMEFRAME,
+        )
+        dcm_price = get_close_price_series(dcm_market_data)
+        # Recompute broker constraints for 15m data
+        dcm_max_size = broker.compute_max_size_array(
+            dcm_market_data,
+            enable=ENABLE_FRICTION_MODEL,
+        )
+        pf = strategy_module.run(
+            close=dcm_price,
+            high=dcm_market_data["high"],
+            low=dcm_market_data["low"],
+            volume=dcm_market_data["volume"],
+            init_cash=DEFAULT_INIT_CASH,
+            trend_ema_fast=DCM_TREND_EMA_FAST,
+            trend_ema_slow=DCM_TREND_EMA_SLOW,
+            rsi_length=DCM_RSI_LENGTH,
+            rsi_level_long=DCM_RSI_LEVEL_LONG,
+            rsi_level_short=DCM_RSI_LEVEL_SHORT,
+            atr_length=DCM_ATR_LENGTH,
+            sl_atr_multiplier=DCM_SL_ATR_MULTIPLIER,
+            tp_fib_1=DCM_TP_FIB_1,
+            tp_fib_2=DCM_TP_FIB_2,
+            tp_fib_3=DCM_TP_FIB_3,
+            tp_fib_4=DCM_TP_FIB_4,
+            enable_weekend_trading=DCM_ENABLE_WEEKEND_TRADING,
+            fees=SCALP_FEES if ENABLE_FRICTION_MODEL else 0.0,
+            slippage=SCALP_SLIPPAGE if ENABLE_FRICTION_MODEL else 0.0,
+            fixed_fees=BROKER_FIXED_FEE if ENABLE_FRICTION_MODEL else 0.0,
+            next_bar_execution=ENABLE_NEXT_BAR_EXECUTION,
+            max_size=dcm_max_size,
+            portfolio_freq=DCM_TIMEFRAME,
+            leverage=LEVERAGE,
+        )
+        # Override price for plotting/stats to use 15m data
+        price = dcm_price
+        indicators = {}
     else:
         raise ValueError(f"Unsupported ACTIVE_STRATEGY: {ACTIVE_STRATEGY}")
 
@@ -400,8 +456,12 @@ def main() -> None:
     print("[3/4] Printing portfolio stats...")
     print("\n=== Baseline (Fixed Position Size) ===")
 
-    # Handle CombinedPortfolio / DualPortfolio (no .stats() method)
-    if ACTIVE_STRATEGY in {"momentum_scalp", "adaptive_momentum"}:
+    # Handle CombinedPortfolio / DualPortfolio / QuadPortfolio (no .stats() method)
+    if ACTIVE_STRATEGY in {
+        "momentum_scalp",
+        "adaptive_momentum",
+        "dual_cloud_momentum",
+    }:
         combined_pf = pf
         print(f"\nCombined Portfolio Return: {combined_pf.total_return():.4f}")
         print(f"Combined Portfolio Value (final): {combined_pf.value().iloc[-1]:.2f}")

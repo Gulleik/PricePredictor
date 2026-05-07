@@ -3,6 +3,7 @@
 from . import (
     adaptive_momentum,
     common,
+    dual_cloud_momentum,
     mean_reversion,
     momentum_scalp,
     orb,
@@ -113,6 +114,7 @@ __all__ = [
     "vectorbt_scalping",
     "momentum_scalp",
     "adaptive_momentum",
+    "dual_cloud_momentum",
 ]
 
 MOMENTUM_SCALP_EMA_FAST_WINDOWS = momentum_scalp.EMA_FAST_WINDOWS
@@ -177,3 +179,29 @@ ADAPTIVE_MOMENTUM_ENTRY_COOLDOWN_BARS_VALUES = (
 ADAPTIVE_MOMENTUM_MACD_FAST_VALUES = adaptive_momentum.MACD_FAST_VALUES
 ADAPTIVE_MOMENTUM_MACD_SLOW_VALUES = adaptive_momentum.MACD_SLOW_VALUES
 ADAPTIVE_MOMENTUM_MACD_SIGNAL_VALUES = adaptive_momentum.MACD_SIGNAL_VALUES
+
+DCM_TIMEFRAME = dual_cloud_momentum.BACKTEST_TIMEFRAME
+DCM_TREND_EMA_FAST = dual_cloud_momentum.BACKTEST_TREND_EMA_FAST
+DCM_TREND_EMA_SLOW = dual_cloud_momentum.BACKTEST_TREND_EMA_SLOW
+DCM_RSI_LENGTH = dual_cloud_momentum.BACKTEST_RSI_LENGTH
+DCM_RSI_LEVEL_LONG = dual_cloud_momentum.BACKTEST_RSI_LEVEL_LONG
+DCM_RSI_LEVEL_SHORT = dual_cloud_momentum.BACKTEST_RSI_LEVEL_SHORT
+DCM_ATR_LENGTH = dual_cloud_momentum.BACKTEST_ATR_LENGTH
+DCM_SL_ATR_MULTIPLIER = dual_cloud_momentum.BACKTEST_SL_ATR_MULTIPLIER
+DCM_TP_FIB_1 = dual_cloud_momentum.BACKTEST_TP_FIB_1
+DCM_TP_FIB_2 = dual_cloud_momentum.BACKTEST_TP_FIB_2
+DCM_TP_FIB_3 = dual_cloud_momentum.BACKTEST_TP_FIB_3
+DCM_TP_FIB_4 = dual_cloud_momentum.BACKTEST_TP_FIB_4
+DCM_ENABLE_WEEKEND_TRADING = dual_cloud_momentum.BACKTEST_ENABLE_WEEKEND_TRADING
+
+DCM_TREND_EMA_FAST_VALUES = dual_cloud_momentum.TREND_EMA_FAST_VALUES
+DCM_TREND_EMA_SLOW_VALUES = dual_cloud_momentum.TREND_EMA_SLOW_VALUES
+DCM_RSI_LENGTH_VALUES = dual_cloud_momentum.RSI_LENGTH_VALUES
+DCM_RSI_LEVEL_LONG_VALUES = dual_cloud_momentum.RSI_LEVEL_LONG_VALUES
+DCM_RSI_LEVEL_SHORT_VALUES = dual_cloud_momentum.RSI_LEVEL_SHORT_VALUES
+DCM_ATR_LENGTH_VALUES = dual_cloud_momentum.ATR_LENGTH_VALUES
+DCM_SL_ATR_MULTIPLIER_VALUES = dual_cloud_momentum.SL_ATR_MULTIPLIER_VALUES
+DCM_TP_FIB_1_VALUES = dual_cloud_momentum.TP_FIB_1_VALUES
+DCM_TP_FIB_2_VALUES = dual_cloud_momentum.TP_FIB_2_VALUES
+DCM_TP_FIB_3_VALUES = dual_cloud_momentum.TP_FIB_3_VALUES
+DCM_TP_FIB_4_VALUES = dual_cloud_momentum.TP_FIB_4_VALUES

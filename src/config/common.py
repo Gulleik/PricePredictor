@@ -13,9 +13,10 @@ StrategyName = Literal[
     "bb_rsi_mean_reversion",
     "momentum_scalp",
     "adaptive_momentum",
+    "dual_cloud_momentum",
 ]
 
-ACTIVE_STRATEGY: StrategyName = "adaptive_momentum"
+ACTIVE_STRATEGY: StrategyName = "dual_cloud_momentum"
 ENABLED_STRATEGIES: tuple[StrategyName, ...] = (
     "sma_crossover",
     "mean_reversion",
@@ -26,6 +27,7 @@ ENABLED_STRATEGIES: tuple[StrategyName, ...] = (
     "bb_rsi_mean_reversion",
     "momentum_scalp",
     "adaptive_momentum",
+    "dual_cloud_momentum",
 )
 
 # Default symbols for crypto backtesting
@@ -38,7 +40,7 @@ BACKTEST_SYMBOL = DEFAULT_SYMBOLS[1]
 DATE_REFRESH_CADENCE: Literal["month", "week", "day"] = "week"
 DEFAULT_LOOKBACK_DAYS = 365  # 1 year of daily data
 
-# Default timeframe for bars, aleternatives: "1h", "15m", "5m"
+# Default timeframe for bars, aleternatives: "1h", "30m"
 DEFAULT_TIMEFRAME = "1h"
 
 # Default initial capital for backtests
@@ -58,7 +60,7 @@ HYPERPARAM_TOP_N = 5
 
 # Milestone 7: full-matrix hyperparameter batch search
 HYPERPARAM_SYMBOLS = ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD", "DOGE/USD"]
-HYPERPARAM_TIMEFRAMES = ["1h", "15m", "5m"]
+HYPERPARAM_TIMEFRAMES = ["1h", "30m"]
 HYPERPARAM_STRATEGIES: list[StrategyName] = [
     "sma_crossover",
     "mean_reversion",
@@ -67,13 +69,14 @@ HYPERPARAM_STRATEGIES: list[StrategyName] = [
     "orb",
     "ema_ribbon_scalp",
     "bb_rsi_mean_reversion",
+    "dual_cloud_momentum",
 ]
 
 BATCH_MODE: Literal["quick", "full"] = "quick"
 BATCH_QUICK_SYMBOLS = ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD", "DOGE/USD"]
 BATCH_QUICK_TIMEFRAMES = ["1h"]
 BATCH_QUICK_STRATEGIES: list[StrategyName] = [
-    "bb_rsi_mean_reversion",
+    "dual_cloud_momentum",
 ]
 
 # Milestone 5: systematic search and metrics defaults

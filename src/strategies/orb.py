@@ -188,6 +188,7 @@ def run_scan(
     slippage: float = 0.0,
     max_size: np.ndarray | None = None,
     portfolio_freq: str | None = None,
+    leverage: float = 1.0,
 ) -> Any:
     """Run ORB scan across range_bars and breakout_buffer (cartesian product)."""
     entries_df: dict[tuple, pd.Series] = {}
@@ -234,7 +235,7 @@ def run_scan(
             short_exits_frame = apply_valid_mask(short_exits_frame, valid_mask)
 
     portfolio_kwargs: dict[str, Any] = {
-        "init_cash": init_cash,
+        "init_cash": init_cash * leverage,
         "fees": fees,
         "fixed_fees": fixed_fees,
         "slippage": slippage,

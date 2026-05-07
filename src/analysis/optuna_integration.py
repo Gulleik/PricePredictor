@@ -229,6 +229,7 @@ def optimize_strategy_parameters(
                 "bb_rsi_mean_reversion",
                 "momentum_scalp",
                 "adaptive_momentum",
+                "dual_cloud_momentum",
             }:
                 if market_data is None:
                     raise ValueError(
@@ -237,7 +238,11 @@ def optimize_strategy_parameters(
                 run_kwargs["high"] = market_data["high"]
                 run_kwargs["low"] = market_data["low"]
 
-            if strategy_name in {"momentum_scalp", "adaptive_momentum"}:
+            if strategy_name in {
+                "momentum_scalp",
+                "adaptive_momentum",
+                "dual_cloud_momentum",
+            }:
                 if market_data is not None and "volume" in market_data.columns:
                     run_kwargs["volume"] = market_data["volume"]
 

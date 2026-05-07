@@ -96,6 +96,7 @@ def run_scan(
     slippage: float = 0.0,
     max_size: np.ndarray | None = None,
     portfolio_freq: str | None = None,
+    leverage: float = 1.0,
 ) -> Any:
     """
     Run SMA crossover backtest across all valid (fast, slow) combinations
@@ -143,7 +144,7 @@ def run_scan(
             broadcast_max_size = max_size_arr.reshape(-1, 1)
 
     portfolio_kwargs: dict[str, Any] = {
-        "init_cash": init_cash,
+        "init_cash": init_cash * leverage,
         "fees": fees,
         "fixed_fees": fixed_fees,
         "slippage": slippage,

@@ -49,6 +49,18 @@ from src.config import (
     BROKER_COMMISSION_PCT,
     BROKER_FIXED_FEE,
     BROKER_SLIPPAGE_PCT,
+    DCM_ATR_LENGTH_VALUES,
+    DCM_RSI_LENGTH_VALUES,
+    DCM_RSI_LEVEL_LONG_VALUES,
+    DCM_RSI_LEVEL_SHORT_VALUES,
+    DCM_SL_ATR_MULTIPLIER_VALUES,
+    DCM_TIMEFRAME,
+    DCM_TP_FIB_1_VALUES,
+    DCM_TP_FIB_2_VALUES,
+    DCM_TP_FIB_3_VALUES,
+    DCM_TP_FIB_4_VALUES,
+    DCM_TREND_EMA_FAST_VALUES,
+    DCM_TREND_EMA_SLOW_VALUES,
     DEFAULT_INIT_CASH,
     EMA_RIBBON_ENTRY_COOLDOWN_BARS_VALUES,
     EMA_RIBBON_FAST_WINDOWS,
@@ -266,6 +278,23 @@ def _build_param_space_and_constraints(
                 p["ema_fast"] < p["ema_medium"] < p["ema_slow"]
                 and p["macd_fast"] < p["macd_slow"]
             ),
+        )
+    elif strategy_name == "dual_cloud_momentum":
+        return (
+            {
+                "trend_ema_fast": DCM_TREND_EMA_FAST_VALUES,
+                "trend_ema_slow": DCM_TREND_EMA_SLOW_VALUES,
+                "rsi_length": DCM_RSI_LENGTH_VALUES,
+                "rsi_level_long": DCM_RSI_LEVEL_LONG_VALUES,
+                "rsi_level_short": DCM_RSI_LEVEL_SHORT_VALUES,
+                "atr_length": DCM_ATR_LENGTH_VALUES,
+                "sl_atr_multiplier": DCM_SL_ATR_MULTIPLIER_VALUES,
+                "tp_fib_1": DCM_TP_FIB_1_VALUES,
+                "tp_fib_2": DCM_TP_FIB_2_VALUES,
+                "tp_fib_3": DCM_TP_FIB_3_VALUES,
+                "tp_fib_4": DCM_TP_FIB_4_VALUES,
+            },
+            lambda p: p["trend_ema_fast"] < p["trend_ema_slow"],
         )
     else:
         raise ValueError(f"Unknown strategy: {strategy_name}")
@@ -609,10 +638,15 @@ def _run_single_pass(
         "bb_rsi_mean_reversion",
         "momentum_scalp",
         "adaptive_momentum",
+        "dual_cloud_momentum",
     }:
         run_kwargs["high"] = market_data["high"]
         run_kwargs["low"] = market_data["low"]
-    if strategy_name in {"momentum_scalp", "adaptive_momentum"}:
+    if strategy_name in {
+        "momentum_scalp",
+        "adaptive_momentum",
+        "dual_cloud_momentum",
+    }:
         if "volume" in market_data.columns:
             run_kwargs["volume"] = market_data["volume"]
 
@@ -772,6 +806,7 @@ def _run_wfo(
             "bb_rsi_mean_reversion",
             "momentum_scalp",
             "adaptive_momentum",
+            "dual_cloud_momentum",
         }:
             market_data_is = market_data.iloc[window.is_start : window.is_end]
             market_data_oos = market_data.iloc[window.oos_start : window.oos_end]
@@ -786,6 +821,7 @@ def _run_wfo(
             "bb_rsi_mean_reversion",
             "momentum_scalp",
             "adaptive_momentum",
+            "dual_cloud_momentum",
         }:
             if market_data_is is not None:
                 ohlc_kwargs_is = {
@@ -812,9 +848,15 @@ def _run_wfo(
         best_params = {}
         if isinstance(best_col, tuple):
             # Multi-param strategy (SMA, trend_following)
+            # Tuple may have fewer elements than param_space keys when
+            # some params are not part of the scan grid (e.g.
+            # entry_cooldown_bars for ema_ribbon_scalp).
             param_names = list(param_space.keys())
-            for j, param_name in enumerate(param_names):
-                best_params[param_name] = best_col[j]
+            for j in range(len(best_col)):
+                best_params[param_names[j]] = best_col[j]
+            # Fill remaining params with their first configured value
+            for param_name in param_names[len(best_col) :]:
+                best_params[param_name] = param_space[param_name][0]
             param_key = best_col
         else:
             # Single param (shouldn't happen in 2+ param strategies)
@@ -830,6 +872,7 @@ def _run_wfo(
             "bb_rsi_mean_reversion",
             "momentum_scalp",
             "adaptive_momentum",
+            "dual_cloud_momentum",
         }:
             if market_data_oos is not None:
                 ohlc_kwargs_oos = {
@@ -1029,12 +1072,17 @@ def _build_batch_universe() -> list[tuple[str, str, str]]:
     else:
         raise ValueError(f"Unknown BATCH_MODE: {BATCH_MODE}. Use 'quick' or 'full'.")
 
-    return [
-        (strategy, symbol, timeframe)
-        for strategy in strategies
-        for symbol in symbols
-        for timeframe in timeframes
-    ]
+    combos = []
+    for strategy in strategies:
+        if strategy == "dual_cloud_momentum":
+            # DCM is fixed to 15m LTF / 1h HTF; skip timeframe iteration
+            for symbol in symbols:
+                combos.append((strategy, symbol, DCM_TIMEFRAME))
+        else:
+            for symbol in symbols:
+                for timeframe in timeframes:
+                    combos.append((strategy, symbol, timeframe))
+    return combos
 
 
 def _build_batch_config_snapshot() -> dict[str, Any]:
@@ -1063,12 +1111,15 @@ def _run_single_combo(
 ) -> GenericSearchResult | None:
     """Execute one matrix combination with failure isolation."""
     try:
+        strategy_module = get_strategy_module(strategy_name)
         start, end = get_default_date_range()
+        # DCM always needs 15m data (resamples to 1h internally)
+        load_tf = DCM_TIMEFRAME if strategy_name == "dual_cloud_momentum" else timeframe
         market_data = load_crypto_bars(
             symbol,
             start=start,
             end=end,
-            timeframe=timeframe,
+            timeframe=load_tf,
         )
         price = get_close_price_series(market_data)
 
@@ -1088,6 +1139,21 @@ def _run_single_combo(
         )
 
         if WFO_ENABLED:
+            if not hasattr(strategy_module, "run_scan"):
+                print(
+                    "WFO requested but strategy has no run_scan; "
+                    "falling back to single-pass search: "
+                    f"strategy={strategy_name}, symbol={symbol}, timeframe={timeframe}"
+                )
+                return _run_single_pass(
+                    price,
+                    market_data,
+                    strategy_name=strategy_name,
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    friction_kwargs=friction_kwargs,
+                    max_size_array=max_size_array,
+                )
             return _run_wfo(
                 price,
                 market_data,
